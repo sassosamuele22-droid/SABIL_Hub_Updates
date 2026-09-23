@@ -8,8 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="SABIL GR Hub" />
   <link rel="manifest" href="./manifest.webmanifest" />
-<link rel="icon" href="./favicon-64.png" type="image/png" />
-<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
   <title>SABIL GR Hub</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -84,14 +84,20 @@
       </div>
 
       <div class="page hidden" data-page="voice">
-        <div class="page-heading"><p class="eyebrow">Voice</p><h2>Voice</h2></div>
-        <div class="notice-card"><strong>Voice comes in v0.3</strong><p>Windows WebRTC/Socket.IO signaling needs a dedicated bridge. The mobile page is intentionally not faking room state.</p></div>
-        <div class="section-title"><h3>Next</h3></div>
-        <div class="card-list">
-          <div class="list-card"><div class="card-icon">🎙</div><div><strong>Team voice channels</strong><p>Same rooms and members as Windows</p></div></div>
-          <div class="list-card"><div class="card-icon">☎</div><div><strong>Private calls</strong><p>Incoming call UI + ringtone</p></div></div>
-          <div class="list-card"><div class="card-icon">📺</div><div><strong>Stream viewer</strong><p>Watch desktop screen shares</p></div></div>
+        <div class="page-heading row-between"><div><p class="eyebrow">Voice</p><h2>Voice</h2></div><button id="refreshVoice" class="chip-btn">Refresh</button></div>
+        <div id="voiceStatusCard" class="voice-status-card">
+          <div><strong id="voiceStatus">Not connected</strong><p id="voiceStatusSub">Choose a room to join.</p></div>
+          <div class="voice-controls">
+            <button id="muteVoiceButton" class="voice-control hidden">Mute</button>
+            <button id="leaveVoiceButton" class="voice-control danger hidden">Leave</button>
+          </div>
         </div>
+        <div class="section-title"><h3>Voice channels</h3></div>
+        <div id="voiceRoomsList" class="card-list"></div>
+        <div class="section-title"><h3>Connected members</h3></div>
+        <div id="voiceMembersList" class="card-list"></div>
+        <div id="remoteAudio"></div>
+        <div class="notice-card voice-note"><strong>Mobile ↔ Windows compatible</strong><p>These rooms use the same Supabase Realtime + WebRTC signaling as the Windows Hub. Private calls and screen-share viewing come next.</p></div>
       </div>
 
       <div class="page hidden" data-page="more">
