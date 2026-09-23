@@ -1,0 +1,14 @@
+{
+  "name": "SABIL GR Hub",
+  "short_name": "SABIL GR",
+  "description": "Private mobile hub for the SABIL GR Simracing Team",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary",
+  "icons": [
+    {"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
