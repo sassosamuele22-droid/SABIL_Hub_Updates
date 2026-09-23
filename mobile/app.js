@@ -7,7 +7,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const state={session:null,profile:null,profiles:[],channels:[],activeChannel:'general',currentPage:'home',subscriptions:[],deferredInstall:null,ownerEdit:false};
+const state={session:null,profile:null,profiles:[],channels:[],activeChannel:'general',currentPage:'home',subscriptions:[],deferredInstall:null,ownerEdit:false,voiceRooms:[],voiceRoomMembers:{},currentVoiceRoom:null,voiceChannel:null,voicePeerId:null,voiceStream:null,voicePeers:new Map(),voiceMuted:false,voiceVolumes:{}};
 
 const safe=(v='')=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const initials=(n='?')=>n.trim().split(/\s+/).slice(0,2).map(x=>x[0]?.toUpperCase()).join('')||'?';
@@ -50,7 +50,7 @@ async function loadProfiles(){const {data,error}=await supabase.from('profiles')
 function applyEditMode(){document.body.classList.toggle('owner-editing',isOwner()&&state.ownerEdit);$('#editModeButton').textContent=state.ownerEdit?'Finish edit':'Edit'}
 $('#editModeButton').onclick=()=>{if(!isOwner())return;state.ownerEdit=!state.ownerEdit;applyEditMode();toast(state.ownerEdit?'Owner edit mode on':'Owner edit mode off')};
 
-function nav(page){state.currentPage=page;$$('.page').forEach(p=>p.classList.add('hidden'));$(`.page[data-page="${page}"]`)?.classList.remove('hidden');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));window.scrollTo(0,0);if(page==='home')loadHome();if(page==='events')loadEvents();if(page==='chat'){loadChannels();loadMessages();loadPolls()}}
+function nav(page){state.currentPage=page;$$('.page').forEach(p=>p.classList.add('hidden'));$(`.page[data-page="${page}"]`)?.classList.remove('hidden');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));window.scrollTo(0,0);if(page==='home')loadHome();if(page==='events')loadEvents();if(page==='chat'){loadChannels();loadMessages();loadPolls()}if(page==='voice'){loadVoiceRooms()}}
 $$('[data-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.nav));$('#profileButton').onclick=()=>showSubpage('settings');$('#backMore').onclick=()=>nav('more');$$('[data-subpage]').forEach(b=>b.onclick=()=>showSubpage(b.dataset.subpage));
 
 function renderHomeProfile(){const p=state.profile||{};$('#homeProfile').innerHTML=`<p class="eyebrow">Signed in</p><h3>${safe(p.full_name||p.nickname||'Team member')}</h3><p>${safe(p.nickname||'')} ${p.race_number?`#${safe(p.race_number)}`:''}</p><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div>`}
@@ -103,7 +103,106 @@ async function renderRules(c){const {data,error}=await supabase.from('team_rules
 async function renderFiles(c){const {data,error}=await supabase.from('team_files').select('*').order('created_at',{ascending:false}).limit(50);c.innerHTML=`<div class="page-heading"><p class="eyebrow">Resources</p><h2>Files</h2></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(f=>`<a class="file-card" href="${safe(f.external_url||f.storage_url||'#')}" target="_blank" rel="noopener"><div class="card-icon">↗</div><div><strong>${safe(f.name)}</strong><p>${safe(f.category||'')} · ${safe(f.description||'')}</p></div></a>`).join(''):empty('No team files'))}</div>`}
 function renderSettings(c){const p=state.profile||{};c.innerHTML=`<div class="page-heading"><p class="eyebrow">Account</p><h2>Settings</h2></div><div class="hero-card"><div class="profile-row"><div class="profile-avatar">${p.avatar_url?`<img src="${safe(p.avatar_url)}" alt="" class="profile-avatar">`:initials(p.full_name||p.nickname)}</div><div><strong>${safe(p.full_name||p.nickname||state.session.user.email)}</strong><p>${safe(state.session.user.email)}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div><div class="divider"></div><div class="settings-row"><div><strong>PWA</strong><p>Add SABIL GR Hub to your Home Screen</p></div><button id="settingsInstall">Install</button></div>${isOwner()?`<div class="settings-row"><div><strong>Owner edit mode</strong><p>Show structural editing controls</p></div><button id="settingsEdit">${state.ownerEdit?'Finish':'Edit'}</button></div>`:''}<div class="settings-row"><div><strong>Session</strong><p>Same Supabase account as Windows</p></div><button id="logoutBtn" class="danger-btn">Log out</button></div></div>`;$('#logoutBtn').onclick=()=>supabase.auth.signOut();$('#settingsInstall').onclick=installPwa;if($('#settingsEdit'))$('#settingsEdit').onclick=()=>{state.ownerEdit=!state.ownerEdit;applyEditMode();renderSettings(c)}}
 
-function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[]}
+
+
+// ---- Mobile Voice (Supabase Realtime + WebRTC, compatible with Windows Hub) ----
+function voiceRoomLabel(room){return state.voiceRooms.find(x=>x.room===room)?.label||room}
+function voiceProfileName(uid){const p=state.profiles.find(x=>x.id===uid);return p?.nickname||p?.full_name||'Team member'}
+function voiceProfileImage(uid){return state.profiles.find(x=>x.id===uid)?.avatar_url||''}
+function randomPeerId(){return (crypto.randomUUID?.()||('m-'+Math.random().toString(36).slice(2)+Date.now().toString(36)))}
+async function loadVoiceRooms(){
+  const [cc,entries,eds,events]=await Promise.all([
+    supabase.from('custom_channels').select('*').eq('active',true).eq('channel_type','voice').order('sort_order'),
+    supabase.from('event_entries').select('id,event_id,entry_name,status').order('created_at'),
+    supabase.from('event_entry_drivers').select('entry_id,driver_id'),
+    supabase.from('events').select('id,name,status,event_date').order('event_date')
+  ]);
+  const rooms=[];
+  for(const c of cc.data||[])rooms.push({room:`customvoice:${c.id}`,label:c.name,private:false});
+  const me=state.session?.user?.id, elevated=['owner','admin'].includes(String(effectiveRole(state.profile)||'').toLowerCase());
+  const em=Object.fromEntries((events.data||[]).map(e=>[e.id,e]));
+  for(const en of entries.data||[]){
+    const assigned=(eds.data||[]).some(d=>d.entry_id===en.id&&d.driver_id===me);
+    if(assigned||elevated){const ev=em[en.event_id];rooms.push({room:`entryvoice:${en.id}`,label:`Line-up · ${ev?.name||'Event'} · ${en.entry_name||'Entry'}`,private:true});}
+  }
+  state.voiceRooms=rooms;
+  await syncVoiceRoomWatchers();
+  renderVoiceRooms();
+  renderCurrentVoiceMembers();
+}
+async function syncVoiceRoomWatchers(){
+  state.voiceWatchers??=new Map();
+  const wanted=new Set(state.voiceRooms.map(r=>r.room));
+  for(const [room,ch] of state.voiceWatchers){if(!wanted.has(room)&&room!==state.currentVoiceRoom){try{await supabase.removeChannel(ch)}catch{}state.voiceWatchers.delete(room)}}
+  for(const room of wanted){if(state.voiceWatchers.has(room)||room===state.currentVoiceRoom)continue;const ch=makeVoiceChannel(room,false);state.voiceWatchers.set(room,ch);ch.subscribe();}
+}
+function makeVoiceChannel(room,active){
+  const key=`mobile:${state.session.user.id}:${randomPeerId()}`;
+  const ch=supabase.channel(`sabil-voice:${room}`,{config:{private:false,broadcast:{self:false},presence:{key}}});
+  ch.on('presence',{event:'sync'},()=>{
+    const members=presenceMembers(ch);state.voiceRoomMembers[room]=members;renderVoiceRooms();
+    if(active&&state.currentVoiceRoom===room){renderCurrentVoiceMembers();syncVoicePeers(members);}
+  });
+  if(active)ch.on('broadcast',{event:'signal'},({payload})=>{if(payload?.target===state.voicePeerId)handleVoiceSignal(payload.from,payload.data)});
+  return ch;
+}
+function presenceMembers(ch){
+  const out=[];for(const [key,arr] of Object.entries(ch.presenceState()||{}))for(const p of arr||[]){if(p?.userId)out.push({peerId:p.peerId||key,userId:p.userId,userName:p.userName||voiceProfileName(p.userId),profileImage:p.profileImage||voiceProfileImage(p.userId)})}return out;
+}
+function renderVoiceRooms(){
+  const box=$('#voiceRoomsList');if(!box)return;if(!state.voiceRooms.length){box.innerHTML=empty('No voice channels available');return}
+  box.innerHTML=state.voiceRooms.map(r=>{const members=state.voiceRoomMembers[r.room]||[],on=state.currentVoiceRoom===r.room;return `<div class="list-card voice-room"><div class="voice-room-main"><div class="card-icon">${r.private?'🔒':'🎙'}</div><div class="voice-room-meta"><strong>${safe(r.label)}</strong><p>${r.private?'Private line-up room':'Team voice channel'} · <span class="voice-room-count ${members.length?'live':''}">${members.length} connected</span></p></div></div><button class="voice-join ${on?'connected':''}" data-voice-room="${safe(r.room)}">${on?'Joined':'Join'}</button></div>`}).join('');
+}
+$('#voiceRoomsList').onclick=e=>{const b=e.target.closest('[data-voice-room]');if(!b)return;if(state.currentVoiceRoom===b.dataset.voiceRoom)return;joinVoice(b.dataset.voiceRoom)};
+$('#refreshVoice').onclick=loadVoiceRooms;
+$('#leaveVoiceButton').onclick=leaveVoice;
+$('#muteVoiceButton').onclick=()=>{state.voiceMuted=!state.voiceMuted;for(const t of state.voiceStream?.getAudioTracks?.()||[])t.enabled=!state.voiceMuted;$('#muteVoiceButton').textContent=state.voiceMuted?'Unmute':'Mute';$('#muteVoiceButton').classList.toggle('active',state.voiceMuted)};
+async function joinVoice(room){
+  await leaveVoice(false);
+  try{state.voiceStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false})}catch(e){toast('Microphone permission is required for voice.','error');return}
+  state.currentVoiceRoom=room;state.voicePeerId=randomPeerId();state.voiceMuted=false;
+  $('#voiceStatus').textContent=`Connecting to ${voiceRoomLabel(room)}…`;$('#voiceStatusSub').textContent='Microphone active';$('#muteVoiceButton').classList.remove('hidden');$('#leaveVoiceButton').classList.remove('hidden');
+  const oldWatcher=state.voiceWatchers?.get(room);if(oldWatcher){try{await supabase.removeChannel(oldWatcher)}catch{}state.voiceWatchers.delete(room)}
+  const ch=makeVoiceChannel(room,true);state.voiceChannel=ch;
+  await new Promise((resolve,reject)=>{let done=false;const timer=setTimeout(()=>{if(!done){done=true;reject(new Error('Voice room timeout'))}},8000);ch.subscribe(async status=>{if(status==='SUBSCRIBED'&&!done){done=true;clearTimeout(timer);try{await ch.track({peerId:state.voicePeerId,userId:state.session.user.id,userName:state.profile?.full_name||state.profile?.nickname||'Team member',profileImage:state.profile?.avatar_url||''});resolve()}catch(e){reject(e)}}})}).catch(async e=>{toast(e.message||'Voice connection failed','error');await leaveVoice();throw e});
+  $('#voiceStatus').textContent=`Connected · ${voiceRoomLabel(room)}`;$('#voiceStatusSub').textContent='Mobile ↔ Windows voice active';state.voiceRoomMembers[room]=presenceMembers(ch);renderVoiceRooms();renderCurrentVoiceMembers();syncVoicePeers(state.voiceRoomMembers[room]);
+}
+async function leaveVoice(rewatch=true){
+  const room=state.currentVoiceRoom,ch=state.voiceChannel;
+  for(const pc of state.voicePeers.values())try{pc.close()}catch{}state.voicePeers.clear();
+  $('#remoteAudio').innerHTML='';for(const t of state.voiceStream?.getTracks?.()||[])try{t.stop()}catch{}state.voiceStream=null;
+  state.currentVoiceRoom=null;state.voicePeerId=null;state.voiceChannel=null;state.voiceMuted=false;
+  if(ch){try{await ch.untrack()}catch{}try{await supabase.removeChannel(ch)}catch{}}
+  $('#voiceStatus').textContent='Not connected';$('#voiceStatusSub').textContent='Choose a room to join.';$('#muteVoiceButton').classList.add('hidden');$('#leaveVoiceButton').classList.add('hidden');$('#muteVoiceButton').textContent='Mute';$('#muteVoiceButton').classList.remove('active');
+  if(room&&rewatch){const watcher=makeVoiceChannel(room,false);state.voiceWatchers??=new Map();state.voiceWatchers.set(room,watcher);watcher.subscribe()}
+  renderVoiceRooms();renderCurrentVoiceMembers();
+}
+function renderCurrentVoiceMembers(){
+  const box=$('#voiceMembersList');if(!box)return;if(!state.currentVoiceRoom){box.innerHTML=empty('Join a room to see members');return}
+  const members=state.voiceRoomMembers[state.currentVoiceRoom]||[];if(!members.length){box.innerHTML=empty('Connecting…');return}
+  box.innerHTML=members.map(m=>{const self=m.peerId===state.voicePeerId,v=state.voiceVolumes[m.peerId]??1;return `<div class="list-card voice-member"><div class="voice-avatar">${m.profileImage?`<img src="${safe(m.profileImage)}" alt="">`:initials(m.userName)}</div><div><strong>${safe(m.userName)}${self?' · You':''}</strong><p>${self?(state.voiceMuted?'Muted':'Microphone active'):'Connected'}</p></div>${self?'':`<label class="volume-wrap"><span>Vol</span><input type="range" min="0" max="1" step="0.05" value="${v}" data-peer-volume="${safe(m.peerId)}"></label>`}</div>`}).join('');
+}
+$('#voiceMembersList').oninput=e=>{const i=e.target.closest('[data-peer-volume]');if(!i)return;state.voiceVolumes[i.dataset.peerVolume]=Number(i.value);document.querySelectorAll(`audio[data-peer="${CSS.escape(i.dataset.peerVolume)}"]`).forEach(a=>a.volume=Number(i.value))};
+function syncVoicePeers(members){
+  if(!state.currentVoiceRoom)return;const others=(members||[]).filter(m=>m.peerId!==state.voicePeerId),alive=new Set(others.map(m=>m.peerId));
+  for(const [id,pc] of state.voicePeers)if(!alive.has(id)){pc.close();state.voicePeers.delete(id);document.querySelectorAll(`audio[data-peer="${CSS.escape(id)}"]`).forEach(x=>x.remove())}
+  for(const m of others)if(!state.voicePeers.has(m.peerId))makeVoicePeer(m.peerId,String(state.voicePeerId)<String(m.peerId));renderCurrentVoiceMembers();
+}
+function makeVoicePeer(peerId,initiator){
+  if(state.voicePeers.has(peerId))return state.voicePeers.get(peerId);const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});state.voicePeers.set(peerId,pc);
+  for(const t of state.voiceStream?.getAudioTracks?.()||[])pc.addTrack(t,state.voiceStream);
+  pc.onicecandidate=e=>{if(e.candidate)sendVoiceSignal(peerId,{candidate:e.candidate})};
+  pc.ontrack=e=>{if(e.track.kind!=='audio')return;let el=document.querySelector(`audio[data-peer="${CSS.escape(peerId)}"]`);if(!el){el=document.createElement('audio');el.autoplay=true;el.playsInline=true;el.dataset.peer=peerId;el.volume=state.voiceVolumes[peerId]??1;$('#remoteAudio').appendChild(el)}el.srcObject=e.streams[0]||new MediaStream([e.track]);el.play?.().catch(()=>{})};
+  pc.onconnectionstatechange=()=>{if(['failed','closed'].includes(pc.connectionState)){pc.close();state.voicePeers.delete(peerId)}};
+  if(initiator)pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>sendVoiceSignal(peerId,{sdp:pc.localDescription})).catch(e=>console.warn('voice offer',e));return pc;
+}
+async function sendVoiceSignal(target,data){if(!state.voiceChannel||!state.voicePeerId)return;try{await state.voiceChannel.send({type:'broadcast',event:'signal',payload:{from:state.voicePeerId,target,data}})}catch(e){console.warn('voice signal send',e)}}
+async function handleVoiceSignal(from,data){
+  const pc=state.voicePeers.get(from)||makeVoicePeer(from,false);
+  try{if(data?.sdp){await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));if(data.sdp.type==='offer'){const ans=await pc.createAnswer();await pc.setLocalDescription(ans);await sendVoiceSignal(from,{sdp:pc.localDescription})}}else if(data?.candidate){await pc.addIceCandidate(new RTCIceCandidate(data.candidate))}}catch(e){console.warn('voice signal',e)}
+}
+
+function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[];if(state.currentVoiceRoom)leaveVoice(false);for(const ch of state.voiceWatchers?.values?.()||[])try{supabase.removeChannel(ch)}catch{}state.voiceWatchers?.clear?.()}
 function startRealtime(){cleanupRealtime();const specs=[['messages',()=>state.currentPage==='chat'&&loadMessages()],['direct_messages',()=>state.currentPage==='chat'&&loadDMs()],['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['notifications',()=>state.currentPage==='home'&&loadHome()],['custom_channels',()=>state.currentPage==='chat'&&loadChannels()],['polls',()=>state.currentPage==='chat'&&loadPolls()],['poll_votes',()=>state.currentPage==='chat'&&loadPolls()]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v02-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;$('#installButton').classList.remove('hidden')});
