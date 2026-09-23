@@ -1,19 +1,17 @@
-[README.md](https://github.com/user-attachments/files/32576892/README.md)
-# SABIL GR Hub Mobile PWA v0.2
+[README.md](https://github.com/user-attachments/files/32578453/README.md)
+# SABIL GR Hub Mobile PWA v0.3
 
-Uses the existing SABIL GR Supabase project and accounts.
+Adds real mobile voice channels compatible with the Windows Hub.
 
-v0.2 adds:
-- real SABIL GR logo
-- dynamic text channels from custom_channels
-- owner edit mode for channels/events
-- event detail + attendance + line-ups + stint planner display
-- poll creation + voting
-- full team profile cards
-- training creation
-- richer results
-- notification mark-read
-- realtime refreshes for key tables
-- cleaner mobile UI and dark scrollbars
+## Voice in v0.3
+- reads active voice channels from `custom_channels`
+- shows private line-up voice rooms for assigned drivers / Owner / Admin
+- joins the same `sabil-voice:<room>` Supabase Realtime channels used by Windows
+- WebRTC P2P microphone audio
+- live member presence
+- mute / unmute
+- leave room
+- per-user receive volume
+- Windows ↔ mobile interoperability
 
-Voice/calls/screenshare are intentionally scheduled for v0.3.
+Private calls and screen-share viewing are not included yet.
