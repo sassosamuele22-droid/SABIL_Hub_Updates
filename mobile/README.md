@@ -1,13 +1,19 @@
-[README.md](https://github.com/user-attachments/files/32575738/README.md)
-# SABIL GR Hub Mobile PWA
+[README.md](https://github.com/user-attachments/files/32576892/README.md)
+# SABIL GR Hub Mobile PWA v0.2
 
-Private mobile companion for the SABIL GR Simracing Team.
+Uses the existing SABIL GR Supabase project and accounts.
 
-- Uses the existing Supabase project and accounts.
-- Static PWA: no local Express server.
-- Mobile-first black/white interface.
-- Current build: Home, Events/line-ups/attendance, Team, Training, Results, Chat, DMs, Poll display, Rules, Files, Settings.
-- Voice UI is intentionally a shell until the Windows Socket.IO/WebRTC signaling is bridged.
+v0.2 adds:
+- real SABIL GR logo
+- dynamic text channels from custom_channels
+- owner edit mode for channels/events
+- event detail + attendance + line-ups + stint planner display
+- poll creation + voting
+- full team profile cards
+- training creation
+- richer results
+- notification mark-read
+- realtime refreshes for key tables
+- cleaner mobile UI and dark scrollbars
 
-## Vercel
-Set this `mobile` folder as the project Root Directory. No build command is required for the static version.
+Voice/calls/screenshare are intentionally scheduled for v0.3.
