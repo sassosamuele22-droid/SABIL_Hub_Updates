@@ -14,29 +14,14 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="offlineBanner" class="offline-banner hidden">Offline — showing cached app shell</div>
+  <div id="offlineBanner" class="offline-banner hidden">Offline — cached shell active</div>
 
   <main id="loginView" class="login-shell">
     <section class="login-card">
-      <div class="brand brand-login">
-        <div class="brand-mark">SGR</div>
-        <div>
-          <h1>SABIL GR Hub</h1>
-          <p>Simracing Team</p>
-        </div>
-      </div>
+      <img class="login-logo" src="./logo.png" alt="SABIL GR Simracing Team" />
       <form id="loginForm" class="stack gap-lg">
-        <label class="field">
-          <span>Email</span>
-          <input id="email" type="email" autocomplete="email" placeholder="name@example.com" required />
-        </label>
-        <label class="field">
-          <span>Password</span>
-          <div class="password-wrap">
-            <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" minlength="8" required />
-            <button id="togglePassword" class="icon-btn ghost" type="button" aria-label="Show password">👁</button>
-          </div>
-        </label>
+        <label class="field"><span>Email</span><input id="email" type="email" autocomplete="email" placeholder="name@example.com" required /></label>
+        <label class="field"><span>Password</span><div class="password-wrap"><input id="password" type="password" autocomplete="current-password" placeholder="••••••••" minlength="8" required /><button id="togglePassword" class="icon-btn" type="button" aria-label="Show password">◉</button></div></label>
         <button class="primary-btn" type="submit">Sign in</button>
         <p id="loginError" class="error-text hidden"></p>
       </form>
@@ -45,70 +30,65 @@
 
   <div id="appView" class="app-shell hidden">
     <header class="topbar">
-      <div class="brand compact">
-        <div class="brand-mark small">SGR</div>
-        <div>
-          <strong>SABIL GR Hub</strong>
-          <span id="connectionLabel">Connected</span>
-        </div>
+      <img class="top-logo" src="./logo.png" alt="SABIL GR" />
+      <div class="top-actions">
+        <span id="connectionLabel" class="connection-dot">Connected</span>
+        <button id="profileButton" class="avatar-btn" aria-label="Profile"><span id="avatarInitials">?</span></button>
       </div>
-      <button id="profileButton" class="avatar-btn" aria-label="Profile"><span id="avatarInitials">?</span></button>
     </header>
 
     <div id="toastHost" class="toast-host" aria-live="polite"></div>
 
-    <section class="content" id="content">
+    <section class="content">
       <div class="page" data-page="home">
         <div class="page-heading row-between">
           <div><p class="eyebrow">Dashboard</p><h2>Home</h2></div>
-          <button id="installButton" class="chip-btn hidden">Install</button>
+          <div class="row gap-sm"><button id="editModeButton" class="chip-btn owner-only hidden">Edit</button><button id="installButton" class="chip-btn hidden">Install</button></div>
         </div>
         <div id="homeProfile" class="hero-card loading-card">Loading profile…</div>
-        <div class="section-title"><h3>Upcoming events</h3><button class="link-btn" data-nav="events">View all</button></div>
-        <div id="homeEvents" class="card-list"></div>
-        <div class="section-title"><h3>Recent activity</h3></div>
-        <div id="homeActivity" class="card-list"></div>
-        <div class="section-title"><h3>Notifications</h3></div>
-        <div id="homeNotifications" class="card-list"></div>
+        <div class="section-title"><h3>Upcoming events</h3><button class="link-btn" data-nav="events">View all</button></div><div id="homeEvents" class="card-list"></div>
+        <div class="section-title"><h3>Recent activity</h3></div><div id="homeActivity" class="card-list"></div>
+        <div class="section-title"><h3>Notifications</h3><button id="markNotificationsRead" class="link-btn">Mark read</button></div><div id="homeNotifications" class="card-list"></div>
       </div>
 
       <div class="page hidden" data-page="events">
-        <div class="page-heading"><p class="eyebrow">Race calendar</p><h2>Events</h2></div>
+        <div class="page-heading row-between"><div><p class="eyebrow">Race calendar</p><h2>Events</h2></div><button id="newEventButton" class="chip-btn edit-only hidden">+ Event</button></div>
         <div id="eventsList" class="card-list"></div>
       </div>
 
       <div class="page hidden" data-page="chat">
         <div class="page-heading row-between"><div><p class="eyebrow">Team comms</p><h2>Chat</h2></div><button id="refreshChat" class="chip-btn">Refresh</button></div>
         <div class="segmented"><button class="segment active" data-chat-tab="channels">Channels</button><button class="segment" data-chat-tab="dms">DMs</button><button class="segment" data-chat-tab="polls">Polls</button></div>
+
         <div id="chatChannelsPane">
-          <div class="row gap-sm"><select id="channelSelect" class="select-grow"></select></div>
+          <div class="row gap-sm">
+            <select id="channelSelect" class="select-grow"></select>
+            <button id="addChannelButton" class="small-square edit-only hidden" title="Add channel">+</button>
+            <button id="deleteChannelButton" class="small-square danger edit-only hidden" title="Delete channel">×</button>
+          </div>
           <div id="messagesList" class="messages-list"></div>
-          <form id="messageForm" class="composer">
-            <input id="messageInput" maxlength="2000" autocomplete="off" placeholder="Message team…" />
-            <button class="send-btn" type="submit">Send</button>
-          </form>
+          <form id="messageForm" class="composer"><input id="messageInput" maxlength="2000" autocomplete="off" placeholder="Message team…" /><button class="send-btn" type="submit">Send</button></form>
           <div id="mentionSuggestions" class="mention-box hidden"></div>
         </div>
+
         <div id="chatDmsPane" class="hidden">
           <div class="row gap-sm"><select id="dmRecipient" class="select-grow"><option value="">Choose member…</option></select></div>
           <div id="dmList" class="messages-list"></div>
-          <form id="dmForm" class="composer">
-            <input id="dmInput" maxlength="2000" autocomplete="off" placeholder="Private message…" />
-            <button class="send-btn" type="submit">Send</button>
-          </form>
+          <form id="dmForm" class="composer"><input id="dmInput" maxlength="2000" autocomplete="off" placeholder="Private message…" /><button class="send-btn" type="submit">Send</button></form>
         </div>
-        <div id="chatPollsPane" class="hidden"><div id="pollsList" class="card-list"></div></div>
+
+        <div id="chatPollsPane" class="hidden">
+          <div class="row-right"><button id="newPollButton" class="chip-btn">+ Poll</button></div>
+          <div id="pollsList" class="card-list"></div>
+        </div>
       </div>
 
       <div class="page hidden" data-page="voice">
         <div class="page-heading"><p class="eyebrow">Voice</p><h2>Voice</h2></div>
-        <div class="notice-card">
-          <strong>Voice integration is next</strong>
-          <p>The mobile UI is ready. The existing Windows WebRTC/Socket.IO signaling will be bridged separately so we do not fake room status.</p>
-        </div>
-        <div class="section-title"><h3>Planned mobile voice</h3></div>
+        <div class="notice-card"><strong>Voice comes in v0.3</strong><p>Windows WebRTC/Socket.IO signaling needs a dedicated bridge. The mobile page is intentionally not faking room state.</p></div>
+        <div class="section-title"><h3>Next</h3></div>
         <div class="card-list">
-          <div class="list-card"><div class="card-icon">🎙</div><div><strong>Team voice channels</strong><p>Same rooms as Windows</p></div></div>
+          <div class="list-card"><div class="card-icon">🎙</div><div><strong>Team voice channels</strong><p>Same rooms and members as Windows</p></div></div>
           <div class="list-card"><div class="card-icon">☎</div><div><strong>Private calls</strong><p>Incoming call UI + ringtone</p></div></div>
           <div class="list-card"><div class="card-icon">📺</div><div><strong>Stream viewer</strong><p>Watch desktop screen shares</p></div></div>
         </div>
@@ -117,19 +97,16 @@
       <div class="page hidden" data-page="more">
         <div class="page-heading"><p class="eyebrow">SABIL GR</p><h2>More</h2></div>
         <div class="menu-grid">
-          <button class="menu-card" data-subpage="team"><span>👥</span><strong>Team</strong><small>Drivers & roles</small></button>
+          <button class="menu-card" data-subpage="team"><span>👥</span><strong>Team</strong><small>Drivers & profiles</small></button>
           <button class="menu-card" data-subpage="training"><span>🏁</span><strong>Training</strong><small>Sessions</small></button>
           <button class="menu-card" data-subpage="results"><span>🏆</span><strong>Results</strong><small>Race results</small></button>
           <button class="menu-card" data-subpage="rules"><span>📖</span><strong>Rules</strong><small>Team rules</small></button>
           <button class="menu-card" data-subpage="files"><span>📁</span><strong>Files</strong><small>Team files</small></button>
-          <button class="menu-card" data-subpage="settings"><span>⚙</span><strong>Settings</strong><small>App & profile</small></button>
+          <button class="menu-card" data-subpage="settings"><span>⚙</span><strong>Settings</strong><small>Profile & app</small></button>
         </div>
       </div>
 
-      <div class="page hidden" data-page="subpage">
-        <button id="backMore" class="back-btn">← More</button>
-        <div id="subpageContent"></div>
-      </div>
+      <div class="page hidden" data-page="subpage"><button id="backMore" class="back-btn">← Back</button><div id="subpageContent"></div></div>
     </section>
 
     <nav class="bottom-nav" aria-label="Main navigation">
@@ -140,6 +117,14 @@
       <button class="nav-item" data-nav="more"><span>•••</span><small>More</small></button>
     </nav>
   </div>
+
+  <dialog id="appDialog" class="app-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="row-between"><h3 id="dialogTitle">Edit</h3><button value="cancel" class="icon-close">×</button></div>
+      <div id="dialogBody"></div>
+      <div id="dialogActions" class="dialog-actions"></div>
+    </form>
+  </dialog>
 
   <script type="module" src="./app.js"></script>
 </body>
