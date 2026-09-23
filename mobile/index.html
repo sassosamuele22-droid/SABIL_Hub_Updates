@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SABIL GR Hub" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+  <title>SABIL GR Hub</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="offlineBanner" class="offline-banner hidden">Offline — showing cached app shell</div>
+
+  <main id="loginView" class="login-shell">
+    <section class="login-card">
+      <div class="brand brand-login">
+        <div class="brand-mark">SGR</div>
+        <div>
+          <h1>SABIL GR Hub</h1>
+          <p>Simracing Team</p>
+        </div>
+      </div>
+      <form id="loginForm" class="stack gap-lg">
+        <label class="field">
+          <span>Email</span>
+          <input id="email" type="email" autocomplete="email" placeholder="name@example.com" required />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <div class="password-wrap">
+            <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" minlength="8" required />
+            <button id="togglePassword" class="icon-btn ghost" type="button" aria-label="Show password">👁</button>
+          </div>
+        </label>
+        <button class="primary-btn" type="submit">Sign in</button>
+        <p id="loginError" class="error-text hidden"></p>
+      </form>
+    </section>
+  </main>
+
+  <div id="appView" class="app-shell hidden">
+    <header class="topbar">
+      <div class="brand compact">
+        <div class="brand-mark small">SGR</div>
+        <div>
+          <strong>SABIL GR Hub</strong>
+          <span id="connectionLabel">Connected</span>
+        </div>
+      </div>
+      <button id="profileButton" class="avatar-btn" aria-label="Profile"><span id="avatarInitials">?</span></button>
+    </header>
+
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
+
+    <section class="content" id="content">
+      <div class="page" data-page="home">
+        <div class="page-heading row-between">
+          <div><p class="eyebrow">Dashboard</p><h2>Home</h2></div>
+          <button id="installButton" class="chip-btn hidden">Install</button>
+        </div>
+        <div id="homeProfile" class="hero-card loading-card">Loading profile…</div>
+        <div class="section-title"><h3>Upcoming events</h3><button class="link-btn" data-nav="events">View all</button></div>
+        <div id="homeEvents" class="card-list"></div>
+        <div class="section-title"><h3>Recent activity</h3></div>
+        <div id="homeActivity" class="card-list"></div>
+        <div class="section-title"><h3>Notifications</h3></div>
+        <div id="homeNotifications" class="card-list"></div>
+      </div>
+
+      <div class="page hidden" data-page="events">
+        <div class="page-heading"><p class="eyebrow">Race calendar</p><h2>Events</h2></div>
+        <div id="eventsList" class="card-list"></div>
+      </div>
+
+      <div class="page hidden" data-page="chat">
+        <div class="page-heading row-between"><div><p class="eyebrow">Team comms</p><h2>Chat</h2></div><button id="refreshChat" class="chip-btn">Refresh</button></div>
+        <div class="segmented"><button class="segment active" data-chat-tab="channels">Channels</button><button class="segment" data-chat-tab="dms">DMs</button><button class="segment" data-chat-tab="polls">Polls</button></div>
+        <div id="chatChannelsPane">
+          <div class="row gap-sm"><select id="channelSelect" class="select-grow"></select></div>
+          <div id="messagesList" class="messages-list"></div>
+          <form id="messageForm" class="composer">
+            <input id="messageInput" maxlength="2000" autocomplete="off" placeholder="Message team…" />
+            <button class="send-btn" type="submit">Send</button>
+          </form>
+          <div id="mentionSuggestions" class="mention-box hidden"></div>
+        </div>
+        <div id="chatDmsPane" class="hidden">
+          <div class="row gap-sm"><select id="dmRecipient" class="select-grow"><option value="">Choose member…</option></select></div>
+          <div id="dmList" class="messages-list"></div>
+          <form id="dmForm" class="composer">
+            <input id="dmInput" maxlength="2000" autocomplete="off" placeholder="Private message…" />
+            <button class="send-btn" type="submit">Send</button>
+          </form>
+        </div>
+        <div id="chatPollsPane" class="hidden"><div id="pollsList" class="card-list"></div></div>
+      </div>
+
+      <div class="page hidden" data-page="voice">
+        <div class="page-heading"><p class="eyebrow">Voice</p><h2>Voice</h2></div>
+        <div class="notice-card">
+          <strong>Voice integration is next</strong>
+          <p>The mobile UI is ready. The existing Windows WebRTC/Socket.IO signaling will be bridged separately so we do not fake room status.</p>
+        </div>
+        <div class="section-title"><h3>Planned mobile voice</h3></div>
+        <div class="card-list">
+          <div class="list-card"><div class="card-icon">🎙</div><div><strong>Team voice channels</strong><p>Same rooms as Windows</p></div></div>
+          <div class="list-card"><div class="card-icon">☎</div><div><strong>Private calls</strong><p>Incoming call UI + ringtone</p></div></div>
+          <div class="list-card"><div class="card-icon">📺</div><div><strong>Stream viewer</strong><p>Watch desktop screen shares</p></div></div>
+        </div>
+      </div>
+
+      <div class="page hidden" data-page="more">
+        <div class="page-heading"><p class="eyebrow">SABIL GR</p><h2>More</h2></div>
+        <div class="menu-grid">
+          <button class="menu-card" data-subpage="team"><span>👥</span><strong>Team</strong><small>Drivers & roles</small></button>
+          <button class="menu-card" data-subpage="training"><span>🏁</span><strong>Training</strong><small>Sessions</small></button>
+          <button class="menu-card" data-subpage="results"><span>🏆</span><strong>Results</strong><small>Race results</small></button>
+          <button class="menu-card" data-subpage="rules"><span>📖</span><strong>Rules</strong><small>Team rules</small></button>
+          <button class="menu-card" data-subpage="files"><span>📁</span><strong>Files</strong><small>Team files</small></button>
+          <button class="menu-card" data-subpage="settings"><span>⚙</span><strong>Settings</strong><small>App & profile</small></button>
+        </div>
+      </div>
+
+      <div class="page hidden" data-page="subpage">
+        <button id="backMore" class="back-btn">← More</button>
+        <div id="subpageContent"></div>
+      </div>
+    </section>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-item active" data-nav="home"><span>⌂</span><small>Home</small></button>
+      <button class="nav-item" data-nav="events"><span>▣</span><small>Events</small></button>
+      <button class="nav-item" data-nav="chat"><span>◫</span><small>Chat</small></button>
+      <button class="nav-item" data-nav="voice"><span>◉</span><small>Voice</small></button>
+      <button class="nav-item" data-nav="more"><span>•••</span><small>More</small></button>
+    </nav>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
