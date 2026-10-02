@@ -46,58 +46,35 @@
           <div class="row gap-sm"><button id="editModeButton" class="chip-btn owner-only hidden">Edit</button><button id="installButton" class="chip-btn hidden">Install</button></div>
         </div>
         <div id="homeProfile" class="hero-card loading-card">Loading profile…</div>
+        <div class="section-title"><h3>Latest announcement</h3><button class="link-btn" data-nav="updates">View updates</button></div><div id="homeLatestAnnouncement"></div>
         <div class="section-title"><h3>Upcoming events</h3><button class="link-btn" data-nav="events">View all</button></div><div id="homeEvents" class="card-list"></div>
         <div class="section-title"><h3>Recent activity</h3></div><div id="homeActivity" class="card-list"></div>
         <div class="section-title"><h3>Notifications</h3><button id="markNotificationsRead" class="link-btn">Mark read</button></div><div id="homeNotifications" class="card-list"></div>
       </div>
 
       <div class="page hidden" data-page="events">
-        <div class="page-heading row-between"><div><p class="eyebrow">Race calendar</p><h2>Events</h2></div><button id="newEventButton" class="chip-btn edit-only hidden">+ Event</button></div>
+        <div class="page-heading row-between"><div><p class="eyebrow">Race calendar</p><h2>Events</h2></div><div class="row gap-sm"><button id="calendarButton" class="chip-btn">▦ Calendar</button><button id="newEventButton" class="chip-btn edit-only hidden">+ Event</button></div></div>
+        <div id="eventFilters" class="sim-filters"></div>
+        <div id="eventsCalendar" class="events-calendar-list hidden"></div>
         <div id="eventsList" class="card-list"></div>
       </div>
 
-      <div class="page hidden" data-page="chat">
-        <div class="page-heading row-between"><div><p class="eyebrow">Team comms</p><h2>Chat</h2></div><button id="refreshChat" class="chip-btn">Refresh</button></div>
-        <div class="segmented"><button class="segment active" data-chat-tab="channels">Channels</button><button class="segment" data-chat-tab="dms">DMs</button><button class="segment" data-chat-tab="polls">Polls</button></div>
-
-        <div id="chatChannelsPane">
-          <div class="row gap-sm">
-            <select id="channelSelect" class="select-grow"></select>
-            <button id="addChannelButton" class="small-square edit-only hidden" title="Add channel">+</button>
-            <button id="deleteChannelButton" class="small-square danger edit-only hidden" title="Delete channel">×</button>
-          </div>
-          <div id="messagesList" class="messages-list"></div>
-          <form id="messageForm" class="composer"><input id="messageInput" maxlength="2000" autocomplete="off" placeholder="Message team…" /><button class="send-btn" type="submit">Send</button></form>
-          <div id="mentionSuggestions" class="mention-box hidden"></div>
+      <div class="page hidden" data-page="updates">
+        <div class="page-heading row-between">
+          <div><p class="eyebrow">Team information</p><h2>Updates</h2></div>
+          <button id="refreshUpdates" class="chip-btn">Refresh</button>
         </div>
 
-        <div id="chatDmsPane" class="hidden">
-          <div class="row gap-sm"><select id="dmRecipient" class="select-grow"><option value="">Choose member…</option></select></div>
-          <div id="dmList" class="messages-list"></div>
-          <form id="dmForm" class="composer"><input id="dmInput" maxlength="2000" autocomplete="off" placeholder="Private message…" /><button class="send-btn" type="submit">Send</button></form>
-        </div>
+        <div class="section-title"><h3>Announcements</h3><button id="newAnnouncement" class="chip-btn edit-only hidden">+ Announcement</button></div>
+        <div id="announcementsList" class="card-list"></div>
 
-        <div id="chatPollsPane" class="hidden">
-          <div class="row-right"><button id="newPollButton" class="chip-btn">+ Poll</button></div>
-          <div id="pollsList" class="card-list"></div>
-        </div>
-      </div>
+        <div class="section-title"><h3>Polls</h3><button id="newPollButton" class="chip-btn">+ Poll</button></div>
+        <div id="pollsList" class="card-list"></div>
 
-      <div class="page hidden" data-page="voice">
-        <div class="page-heading row-between"><div><p class="eyebrow">Voice</p><h2>Voice</h2></div><button id="refreshVoice" class="chip-btn">Refresh</button></div>
-        <div id="voiceStatusCard" class="voice-status-card">
-          <div><strong id="voiceStatus">Not connected</strong><p id="voiceStatusSub">Choose a room to join.</p></div>
-          <div class="voice-controls">
-            <button id="muteVoiceButton" class="voice-control hidden">Mute</button>
-            <button id="leaveVoiceButton" class="voice-control danger hidden">Leave</button>
-          </div>
+        <div class="notice-card discord-note">
+          <strong>Chat & voice are handled in Discord</strong>
+          <p>The mobile Hub stays focused on events, announcements, polls, team information and resources.</p>
         </div>
-        <div class="section-title"><h3>Voice channels</h3></div>
-        <div id="voiceRoomsList" class="card-list"></div>
-        <div class="section-title"><h3>Connected members</h3></div>
-        <div id="voiceMembersList" class="card-list"></div>
-        <div id="remoteAudio"></div>
-        <div class="notice-card voice-note"><strong>Mobile ↔ Windows compatible</strong><p>These rooms use the same Supabase Realtime + WebRTC signaling as the Windows Hub. Private calls and screen-share viewing come next.</p></div>
       </div>
 
       <div class="page hidden" data-page="more">
@@ -118,8 +95,7 @@
     <nav class="bottom-nav" aria-label="Main navigation">
       <button class="nav-item active" data-nav="home"><span>⌂</span><small>Home</small></button>
       <button class="nav-item" data-nav="events"><span>▣</span><small>Events</small></button>
-      <button class="nav-item" data-nav="chat"><span>◫</span><small>Chat</small></button>
-      <button class="nav-item" data-nav="voice"><span>◉</span><small>Voice</small></button>
+      <button class="nav-item" data-nav="updates"><span>◆</span><small>Updates</small></button>
       <button class="nav-item" data-nav="more"><span>•••</span><small>More</small></button>
     </nav>
   </div>

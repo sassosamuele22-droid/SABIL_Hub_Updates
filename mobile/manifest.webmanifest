@@ -1,7 +1,7 @@
 {
   "name": "SABIL GR Hub",
   "short_name": "SABIL GR",
-  "description": "Private mobile hub for the SABIL GR Simracing Team",
+  "description": "SABIL GR mobile hub for events, attendance, announcements, polls, results, files and team resources",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -10,15 +10,9 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "./icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ]

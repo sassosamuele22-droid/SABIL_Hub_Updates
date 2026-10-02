@@ -7,19 +7,45 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const state={session:null,profile:null,profiles:[],channels:[],activeChannel:'general',currentPage:'home',subscriptions:[],deferredInstall:null,ownerEdit:false,voiceRooms:[],voiceRoomMembers:{},currentVoiceRoom:null,voiceChannel:null,voicePeerId:null,voiceStream:null,voicePeers:new Map(),voiceMuted:false,voiceVolumes:{}};
+const state={session:null,profile:null,profiles:[],currentPage:'home',subpageKind:null,subscriptions:[],deferredInstall:null,ownerEdit:false,events:[],eventFilter:'all',eventCalendarOpen:false,results:[],resultFilter:'all',announcements:[],files:[],fileFilter:'all'};
 
 const safe=(v='')=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const initials=(n='?')=>n.trim().split(/\s+/).slice(0,2).map(x=>x[0]?.toUpperCase()).join('')||'?';
 const today=()=>new Date().toISOString().slice(0,10);
-const fmtDate=d=>d?new Intl.DateTimeFormat(undefined,{day:'2-digit',month:'short',year:'numeric'}).format(new Date(`${d}T12:00:00`)):'—';
+const fmtDate=d=>{if(!d)return'—';const m=String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:String(d)};
 const fmtTime=t=>t?String(t).slice(0,5):'—';
 const fmtTs=t=>t?new Intl.DateTimeFormat(undefined,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(t)):'';
 const empty=t=>`<div class="empty">${safe(t)}</div>`;
 const roleRank=r=>({owner:3,admin:2,driver:1}[String(r||'').toLowerCase()]||0);
 const effectiveRole=p=>roleRank(p?.secondary_role)>roleRank(p?.role)?p.secondary_role:p?.role;
 const isOwner=()=>effectiveRole(state.profile)==='owner';
+const isManagement=()=>['owner','admin'].includes(String(effectiveRole(state.profile)||'').toLowerCase());
 const hasTag=(p,t)=>Array.isArray(p?.role_tags)&&p.role_tags.some(x=>String(x).toLowerCase()===t.toLowerCase());
+const simKey=v=>{const x=String(v||'').trim().toLowerCase();if(x.includes('iracing'))return 'iracing';if(x==='lmu'||x.includes('le mans'))return 'lmu';return 'other'};
+const simMatches=(row,filter)=>filter==='all'||simKey(row?.simulation)===filter;
+const simCount=(rows,filter)=>filter==='all'?rows.length:rows.filter(r=>simMatches(r,filter)).length;
+const simFilters=(rows,active,attr)=>[['all','All'],['iracing','iRacing'],['lmu','Le Mans Ultimate']].map(([key,label])=>`<button type="button" class="filter-chip ${active===key?'active':''}" ${attr}="${key}" aria-pressed="${active===key?'true':'false'}">${label} (${simCount(rows,key)})</button>`).join('');
+const LMU_EXTRA_TRACKS=['Long Beach','Road Atlanta'];
+function lmuTrackOptions(){const existing=(state.events||[]).filter(e=>simKey(e.simulation)==='lmu').map(e=>e.track).filter(Boolean);return [...new Set([...existing,...LMU_EXTRA_TRACKS])].sort((a,b)=>String(a).localeCompare(String(b))).map(track=>`<option value="${safe(track)}"></option>`).join('')}
+const trackField=(label,id,value='')=>`<div class="dialog-field"><label for="${id}">${safe(label)}</label><input id="${id}" list="lmuTrackOptions" value="${safe(value)}"><datalist id="lmuTrackOptions">${lmuTrackOptions()}</datalist></div>`;
+
+const FILE_BUCKET='sabil-files';
+const eventSortValue=e=>e?.event_date?Date.parse(`${e.event_date}T00:00:00`):Number.MAX_SAFE_INTEGER;
+const sortEventsByDate=list=>[...(list||[])].sort((x,y)=>eventSortValue(x)-eventSortValue(y)||String(x.name||'').localeCompare(String(y.name||'')));
+const eventDateLabel=e=>{
+  const a=fmtDate(e?.event_date),b=fmtDate(e?.event_end_date);
+  return e?.event_end_date&&e.event_end_date!==e.event_date?`${a} → ${b}`:a;
+};
+const eventClassBadges=classes=>(classes||[]).map(x=>`<span class="tag event-class-badge">${safe(x)}</span>`).join('');
+const fileCategoryLabel=v=>{
+  const x=String(v||'').toLowerCase();
+  if(x==='setups')return'Setups';
+  if(x==='liveries')return'Liveries';
+  if(x==='docs'||x==='documents')return'Docs';
+  if(x==='media'||x==='photo & clip links'||x==='photos')return'Photo & Clip Links';
+  return String(v||'Files');
+};
+const cleanObjectName=v=>String(v||'file').replace(/[^\w.\-]+/g,'_').slice(0,180)||'file';
 
 function toast(msg,type='info'){const e=document.createElement('div');e.className=`toast ${type==='error'?'error':''}`;e.textContent=msg;$('#toastHost').append(e);setTimeout(()=>e.remove(),3600)}
 function updateOnline(){ $('#offlineBanner').classList.toggle('hidden',navigator.onLine); $('#connectionLabel').textContent=navigator.onLine?'Connected':'Offline'; }
@@ -42,168 +68,348 @@ supabase.auth.onAuthStateChange((_e,s)=>{state.session=s;s?enterApp():showLogin(
 const {data:{session}}=await supabase.auth.getSession();state.session=session;session?await enterApp():showLogin();
 
 function showLogin(){cleanupRealtime();$('#loginView').classList.remove('hidden');$('#appView').classList.add('hidden')}
-async function enterApp(){ $('#loginView').classList.add('hidden');$('#appView').classList.remove('hidden');await loadProfile();await loadProfiles();await Promise.allSettled([loadHome(),loadEvents(),loadChannels(),loadMessages(),loadDMRecipients(),loadPolls()]);startRealtime(); }
+async function enterApp(){ $('#loginView').classList.add('hidden');$('#appView').classList.remove('hidden');await loadProfile();await loadProfiles();await Promise.allSettled([loadHome(),loadEvents(),loadAnnouncements(),loadPolls()]);startRealtime(); }
 
-async function loadProfile(){const {data,error}=await supabase.from('profiles').select('*').eq('id',state.session.user.id).maybeSingle();if(error)toast(error.message,'error');state.profile=data||{id:state.session.user.id,full_name:state.session.user.email,role:'driver'};$('#avatarInitials').textContent=initials(state.profile.full_name||state.profile.nickname);$('#editModeButton').classList.toggle('hidden',!isOwner());applyEditMode()}
-async function loadProfiles(){const {data,error}=await supabase.from('profiles').select('*').eq('active',true).order('full_name');if(error){toast(error.message,'error');return}state.profiles=data||[];fillDMRecipients()}
+async function loadProfile(){const {data,error}=await supabase.from('profiles').select('*').eq('id',state.session.user.id).maybeSingle();if(error)toast(error.message,'error');state.profile=data||{id:state.session.user.id,full_name:state.session.user.email,role:'driver'};$('#avatarInitials').textContent=initials(state.profile.full_name||state.profile.nickname);$('#editModeButton').classList.toggle('hidden',!isManagement());applyEditMode()}
+async function loadProfiles(){const {data,error}=await supabase.from('profiles').select('*').eq('active',true).order('full_name');if(error){toast(error.message,'error');return}state.profiles=data||[]}
 
-function applyEditMode(){document.body.classList.toggle('owner-editing',isOwner()&&state.ownerEdit);$('#editModeButton').textContent=state.ownerEdit?'Finish edit':'Edit'}
-$('#editModeButton').onclick=()=>{if(!isOwner())return;state.ownerEdit=!state.ownerEdit;applyEditMode();toast(state.ownerEdit?'Owner edit mode on':'Owner edit mode off')};
+function applyEditMode(){document.body.classList.toggle('owner-editing',isManagement()&&state.ownerEdit);$('#editModeButton').textContent=state.ownerEdit?'Finish edit':'Edit'}
+$('#editModeButton').onclick=()=>{if(!isManagement())return;state.ownerEdit=!state.ownerEdit;applyEditMode();toast(state.ownerEdit?'Edit mode on':'Edit mode off')};
 
-function nav(page){state.currentPage=page;$$('.page').forEach(p=>p.classList.add('hidden'));$(`.page[data-page="${page}"]`)?.classList.remove('hidden');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));window.scrollTo(0,0);if(page==='home')loadHome();if(page==='events')loadEvents();if(page==='chat'){loadChannels();loadMessages();loadPolls()}if(page==='voice'){loadVoiceRooms()}}
+function nav(page){state.currentPage=page;if(page!=='subpage')state.subpageKind=null;$$('.page').forEach(p=>p.classList.add('hidden'));$(`.page[data-page="${page}"]`)?.classList.remove('hidden');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));window.scrollTo(0,0);if(page==='home')loadHome();if(page==='events')loadEvents();if(page==='updates'){loadAnnouncements();loadPolls()}}
 $$('[data-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.nav));$('#profileButton').onclick=()=>showSubpage('settings');$('#backMore').onclick=()=>nav('more');$$('[data-subpage]').forEach(b=>b.onclick=()=>showSubpage(b.dataset.subpage));
 
 function renderHomeProfile(){const p=state.profile||{};$('#homeProfile').innerHTML=`<p class="eyebrow">Signed in</p><h3>${safe(p.full_name||p.nickname||'Team member')}</h3><p>${safe(p.nickname||'')} ${p.race_number?`#${safe(p.race_number)}`:''}</p><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div>`}
-async function loadHome(){renderHomeProfile();const [ev,act,not]=await Promise.all([
-  supabase.from('events').select('*').gte('event_end_date',today()).order('event_date').limit(3),
-  supabase.from('activity_log').select('*').order('created_at',{ascending:false}).limit(5),
-  supabase.from('notifications').select('*').eq('user_id',state.session.user.id).order('created_at',{ascending:false}).limit(5)
-]);$('#homeEvents').innerHTML=ev.error?empty('Events unavailable'):renderEvents(ev.data||[],true);$('#homeActivity').innerHTML=act.error?empty('Activity unavailable'):(act.data?.length?act.data.map(a=>`<div class="list-card"><div class="card-icon">↻</div><div><strong>${safe(a.action||'Activity')}</strong><p>${safe(a.details||a.entity_type||'')}</p><small>${fmtTs(a.created_at)}</small></div></div>`).join(''):empty('No recent activity'));$('#homeNotifications').innerHTML=not.error?empty('Notifications unavailable'):(not.data?.length?not.data.map(n=>`<div class="list-card"><div class="card-icon">${n.is_read?'○':'●'}</div><div><strong>${safe(n.title||'Notification')}</strong><p>${safe(n.message||'')}</p><small>${fmtTs(n.created_at)}</small></div></div>`).join(''):empty('No notifications'))}
+function renderHomeAnnouncement(){
+  const box=$('#homeLatestAnnouncement');if(!box)return;
+  const x=state.announcements?.[0];
+  if(!x){box.innerHTML=empty('No announcement yet');return}
+  box.innerHTML=`<button class="announcement-home ${x.highlighted?'highlighted':''}" data-nav="updates">${x.highlighted?'<span class="announcement-dot"></span>':''}<strong>${safe(x.title)}</strong><p class="announcement-meta">${fmtTs(x.created_at)}</p><p>${safe(x.message||'')}</p></button>`;
+  box.querySelector('[data-nav]')?.addEventListener('click',()=>nav('updates'));
+}
+async function loadHome(){
+  renderHomeProfile();
+  const [ev,act,not,ann]=await Promise.all([
+    supabase.from('events').select('*').order('event_date',{ascending:true}).limit(100),
+    supabase.from('activity_log').select('*').order('created_at',{ascending:false}).limit(5),
+    supabase.from('notifications').select('*').eq('user_id',state.session.user.id).order('created_at',{ascending:false}).limit(5),
+    supabase.from('announcements').select('*').order('created_at',{ascending:false}).limit(10)
+  ]);
+  const upcoming=sortEventsByDate((ev.data||[]).filter(e=>(e.event_end_date||e.event_date||'9999-12-31')>=today())).slice(0,3);
+  $('#homeEvents').innerHTML=ev.error?empty('Events unavailable'):renderEvents(upcoming,true);
+  $('#homeActivity').innerHTML=act.error?empty('Activity unavailable'):(act.data?.length?act.data.map(a=>`<div class="list-card"><div class="card-icon">↻</div><div><strong>${safe(a.action||'Activity')}</strong><p>${safe(a.details||a.entity_type||'')}</p><small>${fmtTs(a.created_at)}</small></div></div>`).join(''):empty('No recent activity'));
+  $('#homeNotifications').innerHTML=not.error?empty('Notifications unavailable'):(not.data?.length?not.data.map(n=>`<div class="list-card"><div class="card-icon">${n.is_read?'○':'●'}</div><div><strong>${safe(n.title||'Notification')}</strong><p>${safe(n.message||'')}</p><small>${fmtTs(n.created_at)}</small></div></div>`).join(''):empty('No notifications'));
+  if(!ann.error)state.announcements=ann.data||[];
+  renderHomeAnnouncement();
+}
 $('#markNotificationsRead').onclick=async()=>{const {error}=await supabase.from('notifications').update({is_read:true}).eq('user_id',state.session.user.id).eq('is_read',false);if(error)return toast(error.message,'error');loadHome()};
 
-async function loadEvents(){const {data,error}=await supabase.from('events').select('*').order('event_date',{ascending:false}).limit(50);$('#eventsList').innerHTML=error?empty(error.message):renderEvents(data||[],false)}
-function renderEvents(events,compact=false){if(!events.length)return empty('No events yet');return events.map(e=>`<button class="event-card" data-event-id="${e.id}"><div class="event-top"><div><strong>${safe(e.name)}</strong><p>${safe(e.championship||e.simulation||'')}</p></div><span class="status-pill">${safe(e.status||'scheduled')}</span></div><div class="event-meta"><div class="meta-box"><small>Date</small><span>${fmtDate(e.event_date)} ${fmtTime(e.start_time)}</span></div><div class="meta-box"><small>Track</small><span>${safe(e.track||'—')}</span></div></div>${compact?'':`<p>${safe(e.notes||'')}</p>`}</button>`).join('')}
-document.addEventListener('click',e=>{const b=e.target.closest('[data-event-id]');if(b)showEventDetail(b.dataset.eventId);const m=e.target.closest('[data-member-id]');if(m)showMemberProfile(m.dataset.memberId)});
-async function showEventDetail(id){nav('subpage');$('#subpageContent').innerHTML=empty('Loading event…');const [ev,en,at]=await Promise.all([supabase.from('events').select('*').eq('id',id).single(),supabase.from('event_entries').select('*').eq('event_id',id).order('created_at'),supabase.from('event_attendance').select('*').eq('event_id',id)]);if(ev.error){$('#subpageContent').innerHTML=empty(ev.error.message);return}const entries=en.data||[],attendance=at.data||[];let drivers={},schedule={};if(entries.length){const ids=entries.map(x=>x.id);const [{data:eds},{data:sch}]=await Promise.all([supabase.from('event_entry_drivers').select('*').in('entry_id',ids),supabase.from('entry_schedule_items').select('*').in('entry_id',ids).order('sort_order')]);for(const d of eds||[])(drivers[d.entry_id]??=[]).push(d.driver_id);for(const s of sch||[])(schedule[s.entry_id]??=[]).push(s)}
-const my=attendance.find(a=>a.driver_id===state.session.user.id)?.status||'';
-$('#subpageContent').innerHTML=`<div class="page-heading"><p class="eyebrow">${safe(ev.data.simulation||'Event')}</p><h2>${safe(ev.data.name)}</h2></div><div class="hero-card"><p>${safe(ev.data.championship||'')}</p><h3>${safe(ev.data.track||'—')}</h3><p>${fmtDate(ev.data.event_date)} · ${fmtTime(ev.data.start_time)}</p>${ev.data.notes?`<p>${safe(ev.data.notes)}</p>`:''}</div><div class="section-title"><h3>Your attendance</h3></div><div class="attendance-grid">${[['confirmed','Confirmed'],['unsure','Unsure'],['cant_race',"Can't race"]].map(([v,l])=>`<button class="attendance-btn ${my===v?'active':''}" data-attendance="${v}" data-event="${id}">${l}</button>`).join('')}</div><div class="section-title"><h3>Line-ups</h3></div><div class="card-list">${entries.length?entries.map(x=>`<div class="list-card"><div class="card-icon">#${safe(x.car_number||'')}</div><div><strong>${safe(x.entry_name||'Line-up')}</strong><p>${safe(x.vehicle||'')} · ${(drivers[x.id]||[]).map(uid=>safe(state.profiles.find(p=>p.id===uid)?.full_name||'Driver')).join(', ')||'No drivers'}</p>${(schedule[x.id]||[]).length?`<div class="profile-tags">${schedule[x.id].map(s=>`<span class="tag">${safe(s.item_type)} ${fmtTime(s.start_time)} · ${safe(state.profiles.find(p=>p.id===s.driver_id)?.nickname||'')}</span>`).join('')}</div>`:''}</div></div>`).join(''):empty('No line-ups')}</div>`}
-document.addEventListener('click',async e=>{const b=e.target.closest('[data-attendance]');if(!b)return;const payload={event_id:b.dataset.event,driver_id:state.session.user.id,status:b.dataset.attendance};const {error}=await supabase.from('event_attendance').upsert(payload,{onConflict:'event_id,driver_id'});if(error)return toast(error.message,'error');toast('Attendance updated');showEventDetail(b.dataset.event)});
-$('#newEventButton').onclick=()=>{if(!isOwner()||!state.ownerEdit)return;openDialog('Create event',`<div class="dialog-grid">${field('Name','evName')}${field('Championship','evChamp')}${field('Simulation','evSim')}${field('Track','evTrack')}${field('Date','evDate','date')}${field('Start time','evTime','time')}<div class="dialog-field"><label>Notes</label><textarea id="evNotes"></textarea></div></div>`,[{label:'Create',primary:true,run:async()=>{const payload={name:$('#evName').value.trim(),championship:$('#evChamp').value.trim(),simulation:$('#evSim').value.trim(),track:$('#evTrack').value.trim(),event_date:$('#evDate').value,start_time:$('#evTime').value||null,notes:$('#evNotes').value.trim(),status:'open',created_by:state.session.user.id,event_end_date:$('#evDate').value};const {error}=await supabase.from('events').insert(payload);if(error){toast(error.message,'error');return false}loadEvents();return true}}])};
+async function loadEvents(){
+  const {data,error}=await supabase.from('events').select('*').order('event_date',{ascending:true}).limit(200);
+  if(error){state.events=[];$('#eventFilters').innerHTML='';$('#eventsList').innerHTML=empty(error.message);return}
+  state.events=sortEventsByDate(data||[]);
+  renderEventList();
+}
+function renderEventList(){
+  const rows=state.events||[],filters=$('#eventFilters'),list=$('#eventsList'),calendar=$('#eventsCalendar'),btn=$('#calendarButton');
+  if(state.eventCalendarOpen){
+    filters.classList.add('hidden');list.classList.add('hidden');calendar.classList.remove('hidden');if(btn)btn.textContent='☷ List';renderEventsCalendar();return;
+  }
+  filters.classList.remove('hidden');list.classList.remove('hidden');calendar.classList.add('hidden');if(btn)btn.textContent='▦ Calendar';
+  filters.innerHTML=simFilters(rows,state.eventFilter,'data-event-filter');
+  list.innerHTML=renderEvents(sortEventsByDate(rows.filter(e=>simMatches(e,state.eventFilter))),false);
+}
+function renderEventsCalendar(){
+  const box=$('#eventsCalendar'),rows=sortEventsByDate(state.events||[]);
+  box.innerHTML=rows.length?rows.map(e=>`<button class="calendar-row" data-event-id="${e.id}"><span class="calendar-date">${eventDateLabel(e)}</span><span class="calendar-name">${safe(e.name)}</span><span class="calendar-sim">${safe(e.simulation||'Simracing')}</span></button>`).join(''):empty('No events yet');
+}
+function renderEvents(events,compact=false){
+  if(!events.length)return empty(compact?'No events yet':'No events for this filter');
+  return sortEventsByDate(events).map(e=>`<button class="event-card event-card-v05" data-event-id="${e.id}">
+    <div class="event-top">
+      <div><strong>${safe(e.name)}</strong><div class="event-date">${eventDateLabel(e)}</div></div>
+      <span class="status-pill">${safe(e.status||'open')}</span>
+    </div>
+    <div class="event-route">
+      <div class="event-route-row"><small>TRACK</small><span>${safe(e.track||'—')}</span></div>
+      <div class="event-route-row"><small>SIM</small><span>${safe(e.simulation||'Simracing')}</span></div>
+    </div>
+    <div class="event-footer">
+      <div class="profile-tags">${eventClassBadges(e.classes)}</div>
+      <div class="event-series">${safe(e.championship||'')}</div>
+    </div>
+  </button>`).join('');
+}
+$('#calendarButton').onclick=()=>{state.eventCalendarOpen=!state.eventCalendarOpen;renderEventList()};
+document.addEventListener('click',e=>{
+  const ef=e.target.closest('[data-event-filter]');if(ef){state.eventFilter=ef.dataset.eventFilter||'all';renderEventList();return}
+  const rf=e.target.closest('[data-result-filter]');if(rf){state.resultFilter=rf.dataset.resultFilter||'all';renderResultsContent($('#subpageContent'));return}
+  const cal=e.target.closest('[data-open-calendar]');if(cal){state.eventCalendarOpen=true;nav('events');return}
+  const mark=e.target.closest('[data-announcement-mark]');if(mark){toggleAnnouncementHighlight(mark.dataset.announcementMark,mark.dataset.value==='true');return}
+  const fileFilter=e.target.closest('[data-file-filter]');if(fileFilter){state.fileFilter=fileFilter.dataset.fileFilter||'all';renderFilesContent($('#subpageContent'));return}
+  const fileDownload=e.target.closest('[data-file-download]');if(fileDownload){downloadTeamFile(fileDownload.dataset.fileDownload);return}
+  const fileDelete=e.target.closest('[data-file-delete]');if(fileDelete){confirmDeleteTeamFile(fileDelete.dataset.fileDelete);return}
+  const fileUpload=e.target.closest('[data-file-upload]');if(fileUpload){pickTeamFiles(fileUpload.dataset.fileUpload==='folder');return}
+  const b=e.target.closest('[data-event-id]');if(b){showEventDetail(b.dataset.eventId);return}
+  const m=e.target.closest('[data-member-id]');if(m)showMemberProfile(m.dataset.memberId)
+});
+async function showEventDetail(id){
+  nav('subpage');state.subpageKind='event';$('#subpageContent').innerHTML=empty('Loading event…');
+  const [ev,en,at]=await Promise.all([
+    supabase.from('events').select('*').eq('id',id).single(),
+    supabase.from('event_entries').select('*').eq('event_id',id).order('created_at'),
+    supabase.from('event_attendance').select('*').eq('event_id',id)
+  ]);
+  if(ev.error){$('#subpageContent').innerHTML=empty(ev.error.message);return}
+  const entries=en.data||[],attendance=at.data||[];let drivers={},schedule={};
+  if(entries.length){
+    const ids=entries.map(x=>x.id);
+    const [{data:eds},{data:sch}]=await Promise.all([
+      supabase.from('event_entry_drivers').select('*').in('entry_id',ids),
+      supabase.from('entry_schedule_items').select('*').in('entry_id',ids).order('sort_order')
+    ]);
+    for(const d of eds||[])(drivers[d.entry_id]??=[]).push(d.driver_id);
+    for(const x of sch||[])(schedule[x.entry_id]??=[]).push(x)
+  }
+  const my=attendance.find(x=>x.driver_id===state.session.user.id)?.status||'';
+  const counts={in:attendance.filter(x=>x.status==='in').length,unsure:attendance.filter(x=>x.status==='unsure').length,out:attendance.filter(x=>x.status==='out').length};
+  $('#subpageContent').innerHTML=`
+    <div class="page-heading"><p class="eyebrow">${safe(ev.data.championship||'Event')}</p><h2>${safe(ev.data.name)}</h2><p class="subtle">${eventDateLabel(ev.data)}</p></div>
+    <div class="hero-card event-detail-hero">
+      <div class="event-detail-row"><small>TRACK</small><strong>${safe(ev.data.track||'—')}</strong></div>
+      <div class="event-detail-row"><small>SIM</small><strong>${safe(ev.data.simulation||'Simracing')}</strong></div>
+      <div class="profile-tags">${eventClassBadges(ev.data.classes)}</div>
+      ${ev.data.notes?`<p class="event-notes">${safe(ev.data.notes)}</p>`:''}
+    </div>
+    <div class="section-title"><h3>Your attendance</h3></div>
+    <div class="attendance-grid">
+      ${[['in',`Confirmed (${counts.in})`],['unsure',`Unsure (${counts.unsure})`],['out',`Can't race (${counts.out})`]].map(([v,l])=>`<button class="attendance-btn ${my===v?'active':''}" data-attendance="${v}" data-event="${id}">${l}</button>`).join('')}
+    </div>
+    <div class="section-title"><h3>Line-ups</h3></div>
+    <div class="card-list">${entries.length?entries.map(x=>{
+      const names=(drivers[x.id]||[]).map(uid=>state.profiles.find(p=>p.id===uid)?.full_name||state.profiles.find(p=>p.id===uid)?.nickname||'Driver');
+      const sched=schedule[x.id]||[];
+      return `<div class="lineup-card">
+        <div class="event-top"><div><strong>${safe(x.entry_name||'Line-up')}${x.car_number?` · #${safe(x.car_number)}`:''}</strong><p>${safe(x.vehicle||'')}</p></div><span class="status-pill">${safe(x.status||'draft')}</span></div>
+        <p>${names.length?safe(names.join(', ')):'No drivers assigned'}</p>
+        ${x.race_date?`<p class="subtle">${fmtDate(x.race_date)}${x.race_time?` · ${fmtTime(x.race_time)}`:''}</p>`:''}
+        ${sched.length?`<div class="stint-list">${sched.map(s=>`<div class="stint-row"><strong>${safe(s.title||s.item_type||'Session')}</strong><span>${fmtDate(s.session_date||s.date)} ${fmtTime(s.start_time||s.time)}${s.duration_minutes||s.duration?` · ${s.duration_minutes||s.duration} min`:''}</span></div>`).join('')}</div>`:''}
+      </div>`
+    }).join(''):empty('No line-ups yet')}</div>`;
+}
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-attendance]');if(!b)return;
+  const payload={event_id:b.dataset.event,driver_id:state.session.user.id,status:b.dataset.attendance};
+  const {error}=await supabase.from('event_attendance').upsert(payload,{onConflict:'event_id,driver_id'});
+  if(error)return toast(error.message,'error');
+  toast('Attendance updated');showEventDetail(b.dataset.event)
+});
+$('#newEventButton').onclick=()=>{
+  if(!isManagement()||!state.ownerEdit)return;
+  openDialog('Create event',`<div class="dialog-grid">
+    ${field('Name','evName')}
+    ${field('Championship / series','evChamp')}
+    <div class="dialog-field"><label for="evSim">Simulation</label><select id="evSim"><option>iRacing</option><option>Le Mans Ultimate</option></select></div>
+    ${trackField('Track','evTrack')}
+    ${field('Start date','evDate','date')}
+    ${field('End date','evEnd','date')}
+    ${field('Start time','evTime','time')}
+    ${field('Classes (comma separated)','evClasses')}
+    <div class="dialog-field"><label>Notes</label><textarea id="evNotes"></textarea></div>
+  </div>`,[{label:'Create',primary:true,run:async()=>{
+    const date=$('#evDate').value,end=$('#evEnd').value||date;
+    const payload={
+      name:$('#evName').value.trim(),championship:$('#evChamp').value.trim(),simulation:$('#evSim').value.trim(),
+      track:$('#evTrack').value.trim(),event_date:date,event_end_date:end,start_time:$('#evTime').value||null,
+      classes:$('#evClasses').value.split(',').map(x=>x.trim()).filter(Boolean),notes:$('#evNotes').value.trim(),
+      status:'open',created_by:state.session.user.id
+    };
+    if(!payload.name||!payload.event_date){toast('Name and date are required','error');return false}
+    const {error}=await supabase.from('events').insert(payload);
+    if(error){toast(error.message,'error');return false}
+    await loadEvents();return true
+  }}])
+};
 
-async function loadChannels(){const {data,error}=await supabase.from('custom_channels').select('*').eq('active',true).eq('channel_type','text').order('sort_order');const names=error?[]:(data||[]).map(x=>x.name);if(!names.includes('general'))names.unshift('general');state.channels=[...new Set(names)];if(!state.channels.includes(state.activeChannel))state.activeChannel=state.channels[0]||'general';$('#channelSelect').innerHTML=state.channels.map(c=>`<option ${c===state.activeChannel?'selected':''}>${safe(c)}</option>`).join('')}
-$('#channelSelect').onchange=e=>{state.activeChannel=e.target.value;loadMessages();loadPolls()};
-async function loadMessages(){const {data,error}=await supabase.from('messages').select('*').eq('channel',state.activeChannel).order('created_at',{ascending:true}).limit(120);if(error){$('#messagesList').innerHTML=empty(error.message);return}renderMessages(data||[],'#messagesList')}
-function renderMessages(items,selector){const box=$(selector);if(!items.length){box.innerHTML=empty('No messages yet');return}box.innerHTML=items.map(m=>{const p=state.profiles.find(x=>x.id===m.sender_id),mine=m.sender_id===state.session.user.id;return `<div class="message ${mine?'mine':''}"><div class="message-head">${safe(p?.nickname||p?.full_name||'Driver')}</div><div class="message-body">${safe(m.message||'')}</div>${m.attachment_url?`<a href="${safe(m.attachment_url)}" target="_blank" rel="noopener">Attachment</a>`:''}<small>${fmtTs(m.created_at)}</small></div>`}).join('');box.scrollTop=box.scrollHeight}
-$('#messageForm').onsubmit=async e=>{e.preventDefault();const i=$('#messageInput'),msg=i.value.trim();if(!msg)return;const {error}=await supabase.from('messages').insert({channel:state.activeChannel,sender_id:state.session.user.id,message:msg});if(error)return toast(error.message,'error');i.value='';loadMessages()};
-$('#refreshChat').onclick=()=>{loadChannels();loadMessages();loadPolls()};
-$('#addChannelButton').onclick=()=>{if(!isOwner()||!state.ownerEdit)return;openDialog('New text channel',`<div class="dialog-grid">${field('Channel name','chName')}</div>`,[{label:'Create',primary:true,run:async()=>{const name=$('#chName').value.trim().toLowerCase().replace(/\s+/g,'-');if(!name)return false;const {error}=await supabase.from('custom_channels').insert({name,channel_type:'text',sort_order:99,active:true,created_by:state.session.user.id});if(error){toast(error.message,'error');return false}await loadChannels();state.activeChannel=name;loadMessages();return true}}])};
-$('#deleteChannelButton').onclick=async()=>{if(!isOwner()||!state.ownerEdit||state.activeChannel==='general')return toast('General cannot be removed','error');openDialog('Delete channel',`<p>Delete <strong>#${safe(state.activeChannel)}</strong>?</p>`,[{label:'Delete',danger:true,run:async()=>{const {error}=await supabase.from('custom_channels').update({active:false}).eq('name',state.activeChannel).eq('channel_type','text');if(error){toast(error.message,'error');return false}state.activeChannel='general';loadChannels();loadMessages();return true}}])};
+async function loadAnnouncements(){
+  const {data,error}=await supabase.from('announcements').select('*').order('created_at',{ascending:false}).limit(100);
+  if(error){state.announcements=[];$('#announcementsList').innerHTML=empty('Announcements unavailable');renderHomeAnnouncement();return}
+  state.announcements=data||[];
+  const creatorName=id=>state.profiles.find(p=>p.id===id)?.full_name||state.profiles.find(p=>p.id===id)?.nickname||'SABIL GR';
+  $('#announcementsList').innerHTML=state.announcements.length
+    ? state.announcements.map(x=>`<div class="announcement-card ${x.highlighted?'highlighted':''}">
+        ${x.highlighted?'<span class="announcement-dot" aria-hidden="true"></span>':''}
+        <div class="event-top"><div><strong>${safe(x.title)}</strong><p class="announcement-meta">${safe(creatorName(x.created_by))} · ${fmtTs(x.created_at)}</p></div>
+          ${isManagement()&&state.ownerEdit?`<button class="mini-action ${x.highlighted?'active':''}" data-announcement-mark="${x.id}" data-value="${x.highlighted?'false':'true'}">${x.highlighted?'Unmark':'Mark'}</button>`:''}
+        </div>
+        <p class="announcement-body">${safe(x.message||'')}</p>
+      </div>`).join('')
+    : empty('No announcements yet');
+  renderHomeAnnouncement();
+}
+async function toggleAnnouncementHighlight(id,value){
+  if(!isManagement()||!state.ownerEdit)return;
+  const {error}=await supabase.from('announcements').update({highlighted:!!value}).eq('id',id);
+  if(error)return toast(error.message,'error');
+  loadAnnouncements();
+}
+$('#refreshUpdates').onclick=()=>Promise.allSettled([loadAnnouncements(),loadPolls()]);
+$('#newAnnouncement').onclick=()=>{
+  if(!isManagement()||!state.ownerEdit)return;
+  openDialog('New announcement',
+    `<div class="dialog-grid">
+      ${field('Title','annTitle')}
+      <div class="dialog-field"><label for="annMessage">Message</label><textarea id="annMessage"></textarea></div>
+      <label class="dialog-check"><input id="annHighlight" type="checkbox"> Mark as new / important</label>
+    </div>`,
+    [{label:'Post',primary:true,run:async()=>{
+      const title=$('#annTitle').value.trim(),message=$('#annMessage').value.trim();
+      if(!title||!message){toast('Title and message are required','error');return false}
+      const {error}=await supabase.from('announcements').insert({title,message,created_by:state.session.user.id,highlighted:$('#annHighlight').checked});
+      if(error){toast(error.message,'error');return false}
+      await loadAnnouncements();return true
+    }}]
+  );
+};
 
-function fillDMRecipients(){$('#dmRecipient').innerHTML='<option value="">Choose member…</option>'+state.profiles.filter(p=>p.id!==state.session?.user?.id).map(p=>`<option value="${p.id}">${safe(p.full_name||p.nickname||'Driver')}</option>`).join('')}
-async function loadDMRecipients(){fillDMRecipients()}
-$('#dmRecipient').onchange=loadDMs;
-async function loadDMs(){const other=$('#dmRecipient').value;if(!other){$('#dmList').innerHTML=empty('Choose a member');return}const uid=state.session.user.id;const {data,error}=await supabase.from('direct_messages').select('*').or(`and(sender_id.eq.${uid},recipient_id.eq.${other}),and(sender_id.eq.${other},recipient_id.eq.${uid})`).order('created_at').limit(120);if(error){$('#dmList').innerHTML=empty(error.message);return}renderMessages(data||[],'#dmList')}
-$('#dmForm').onsubmit=async e=>{e.preventDefault();const other=$('#dmRecipient').value,msg=$('#dmInput').value.trim();if(!other)return toast('Choose a member first','error');if(!msg)return;const {error}=await supabase.from('direct_messages').insert({sender_id:state.session.user.id,recipient_id:other,message:msg});if(error)return toast(error.message,'error');$('#dmInput').value='';loadDMs()};
+async function loadPolls(){
+  const {data,error}=await supabase.from('polls').select('*,poll_options(*)').eq('channel','general').order('created_at',{ascending:false}).limit(30);
+  if(error){$('#pollsList').innerHTML=empty('Polls unavailable');return}
+  const polls=data||[],ids=polls.map(p=>p.id);let votes=[];
+  if(ids.length){const r=await supabase.from('poll_votes').select('*').in('poll_id',ids);votes=r.data||[]}
+  $('#pollsList').innerHTML=polls.length?polls.map(p=>{
+    const pv=votes.filter(v=>v.poll_id===p.id),mine=pv.filter(v=>v.user_id===state.session.user.id).map(v=>v.option_id);
+    return `<div class="poll-card"><strong>${safe(p.question)}</strong><p>${p.multiple_choice?'Multiple answers':'One answer'}${p.closes_at?` · closes ${fmtTs(p.closes_at)}`:''}</p>${(p.poll_options||[]).sort((a,b)=>a.sort_order-b.sort_order).map(o=>`<button class="poll-option ${mine.includes(o.id)?'voted':''}" data-poll="${p.id}" data-option="${o.id}" data-multi="${p.multiple_choice?'1':'0'}"><span>${safe(o.option_text)}</span><span class="poll-count">${pv.filter(v=>v.option_id===o.id).length}</span></button>`).join('')}</div>`
+  }).join(''):empty('No polls yet')
+}
 
-$$('[data-chat-tab]').forEach(b=>b.onclick=()=>{$$('[data-chat-tab]').forEach(x=>x.classList.toggle('active',x===b));$('#chatChannelsPane').classList.toggle('hidden',b.dataset.chatTab!=='channels');$('#chatDmsPane').classList.toggle('hidden',b.dataset.chatTab!=='dms');$('#chatPollsPane').classList.toggle('hidden',b.dataset.chatTab!=='polls');if(b.dataset.chatTab==='dms')loadDMs();if(b.dataset.chatTab==='polls')loadPolls()});
-$('#messageInput').oninput=e=>renderMentions(e.target);
-function renderMentions(input){const m=input.value.match(/(?:^|\s)@([\w-]*)$/),box=$('#mentionSuggestions');if(!m){box.classList.add('hidden');return}const q=m[1].toLowerCase(),staticTags=['drivers','admins','lmu','iracing'],users=state.profiles.map(p=>({key:(p.nickname||p.full_name||'').replace(/\s+/g,''),label:p.nickname||p.full_name}));const options=[...staticTags.map(x=>({key:x,label:`@${x}`})),...users].filter(x=>x.key.toLowerCase().includes(q)).slice(0,8);box.innerHTML=options.map(o=>`<button class="mention-item" data-mention="${safe(o.key)}">${safe(o.label)}</button>`).join('');box.classList.toggle('hidden',!options.length)}
-$('#mentionSuggestions').onclick=e=>{const b=e.target.closest('[data-mention]');if(!b)return;const i=$('#messageInput');i.value=i.value.replace(/@([\w-]*)$/,`@${b.dataset.mention} `);$('#mentionSuggestions').classList.add('hidden');i.focus()};
+$('#pollsList').onclick=async e=>{
+  const b=e.target.closest('[data-option]');if(!b)return;
+  const poll=b.dataset.poll,opt=b.dataset.option,multi=b.dataset.multi==='1';
+  const {data:existing}=await supabase.from('poll_votes').select('*').eq('poll_id',poll).eq('user_id',state.session.user.id);
+  const same=(existing||[]).find(v=>v.option_id===opt);
+  if(same){
+    await supabase.from('poll_votes').delete().eq('id',same.id)
+  }else{
+    if(!multi&&(existing||[]).length)await supabase.from('poll_votes').delete().eq('poll_id',poll).eq('user_id',state.session.user.id);
+    const {error}=await supabase.from('poll_votes').insert({poll_id:poll,option_id:opt,user_id:state.session.user.id});
+    if(error)return toast(error.message,'error')
+  }
+  loadPolls()
+};
 
-async function loadPolls(){const {data,error}=await supabase.from('polls').select('*,poll_options(*)').eq('channel',state.activeChannel).order('created_at',{ascending:false}).limit(20);if(error){$('#pollsList').innerHTML=empty('Polls unavailable');return}const polls=data||[],ids=polls.map(p=>p.id);let votes=[];if(ids.length){const r=await supabase.from('poll_votes').select('*').in('poll_id',ids);votes=r.data||[]}$('#pollsList').innerHTML=polls.length?polls.map(p=>{const pv=votes.filter(v=>v.poll_id===p.id),mine=pv.filter(v=>v.user_id===state.session.user.id).map(v=>v.option_id);return `<div class="poll-card"><strong>${safe(p.question)}</strong><p>${p.multiple_choice?'Multiple answers':'One answer'}${p.closes_at?` · closes ${fmtTs(p.closes_at)}`:''}</p>${(p.poll_options||[]).sort((a,b)=>a.sort_order-b.sort_order).map(o=>`<button class="poll-option ${mine.includes(o.id)?'voted':''}" data-poll="${p.id}" data-option="${o.id}" data-multi="${p.multiple_choice?'1':'0'}"><span>${safe(o.option_text)}</span><span class="poll-count">${pv.filter(v=>v.option_id===o.id).length}</span></button>`).join('')}</div>`}).join(''):empty('No polls in this channel')}
-$('#pollsList').onclick=async e=>{const b=e.target.closest('[data-option]');if(!b)return;const poll=b.dataset.poll,opt=b.dataset.option,multi=b.dataset.multi==='1';const {data:existing}=await supabase.from('poll_votes').select('*').eq('poll_id',poll).eq('user_id',state.session.user.id);const same=(existing||[]).find(v=>v.option_id===opt);if(same){await supabase.from('poll_votes').delete().eq('id',same.id)}else{if(!multi&&(existing||[]).length)await supabase.from('poll_votes').delete().eq('poll_id',poll).eq('user_id',state.session.user.id);const {error}=await supabase.from('poll_votes').insert({poll_id:poll,option_id:opt,user_id:state.session.user.id});if(error)return toast(error.message,'error')}loadPolls()};
-$('#newPollButton').onclick=()=>openDialog('Create poll',`<div class="dialog-grid">${field('Question','pollQ')}<div class="dialog-field"><label>Options — one per line, 2–15</label><textarea id="pollOpts" placeholder="Option 1\nOption 2"></textarea></div><label><input id="pollMulti" type="checkbox"> Allow multiple answers</label></div>`,[{label:'Create',primary:true,run:async()=>{const q=$('#pollQ').value.trim(),opts=$('#pollOpts').value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,15);if(!q||opts.length<2){toast('Need a question and at least 2 options','error');return false}const {data:p,error}=await supabase.from('polls').insert({channel:state.activeChannel,question:q,multiple_choice:$('#pollMulti').checked,anonymous:false,created_by:state.session.user.id}).select().single();if(error){toast(error.message,'error');return false}const {error:oe}=await supabase.from('poll_options').insert(opts.map((t,i)=>({poll_id:p.id,option_text:t,sort_order:i})));if(oe){toast(oe.message,'error');return false}loadPolls();return true}}]);
+$('#newPollButton').onclick=()=>openDialog('Create poll',
+  `<div class="dialog-grid">${field('Question','pollQ')}<div class="dialog-field"><label>Options — one per line, 2–15</label><textarea id="pollOpts" placeholder="Option 1\nOption 2"></textarea></div><label class="dialog-check"><input id="pollMulti" type="checkbox"> Allow multiple answers</label></div>`,
+  [{label:'Create',primary:true,run:async()=>{
+    const q=$('#pollQ').value.trim(),opts=$('#pollOpts').value.split('\n').map(x=>x.trim()).filter(Boolean).slice(0,15);
+    if(!q||opts.length<2){toast('Need a question and at least 2 options','error');return false}
+    const {data:p,error}=await supabase.from('polls').insert({channel:'general',question:q,multiple_choice:$('#pollMulti').checked,anonymous:false,created_by:state.session.user.id}).select().single();
+    if(error){toast(error.message,'error');return false}
+    const {error:oe}=await supabase.from('poll_options').insert(opts.map((t,i)=>({poll_id:p.id,option_text:t,sort_order:i})));
+    if(oe){toast(oe.message,'error');return false}
+    loadPolls();return true
+  }}]
+);
 
-async function showSubpage(kind){nav('subpage');const c=$('#subpageContent');c.innerHTML=empty('Loading…');if(kind==='team')return renderTeam(c);if(kind==='training')return renderTraining(c);if(kind==='results')return renderResults(c);if(kind==='rules')return renderRules(c);if(kind==='files')return renderFiles(c);if(kind==='settings')return renderSettings(c)}
+async function showSubpage(kind){nav('subpage');state.subpageKind=kind;const c=$('#subpageContent');c.innerHTML=empty('Loading…');if(kind==='team')return renderTeam(c);if(kind==='training')return renderTraining(c);if(kind==='results')return renderResults(c);if(kind==='rules')return renderRules(c);if(kind==='files')return renderFiles(c);if(kind==='settings')return renderSettings(c)}
 async function renderTeam(c){await loadProfiles();c.innerHTML=`<div class="page-heading"><p class="eyebrow">Members</p><h2>Team</h2></div><div class="card-list">${state.profiles.map(p=>`<button class="member-card" data-member-id="${p.id}"><div class="profile-avatar">${p.avatar_url?`<img src="${safe(p.avatar_url)}" alt="" class="profile-avatar">`:initials(p.full_name||p.nickname)}</div><div><strong>${safe(p.full_name||p.nickname||'Driver')} ${p.race_number?`#${safe(p.race_number)}`:''}</strong><p>${safe(effectiveRole(p)||'driver')} · ${safe(p.country||'')}</p><div class="profile-tags">${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div></div></button>`).join('')}</div>`}
 function showMemberProfile(id){const p=state.profiles.find(x=>x.id===id);if(!p)return;nav('subpage');$('#subpageContent').innerHTML=`<div class="page-heading"><p class="eyebrow">Driver profile</p><h2>${safe(p.full_name||p.nickname||'Driver')}</h2></div><div class="hero-card"><div class="profile-row"><div class="profile-avatar">${p.avatar_url?`<img src="${safe(p.avatar_url)}" class="profile-avatar" alt="">`:initials(p.full_name||p.nickname)}</div><div><strong>${safe(p.nickname||p.full_name||'')}</strong><p>${p.race_number?`#${safe(p.race_number)} · `:''}${safe(p.country||'')}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div><div class="divider"></div><p><strong>Preferred sim:</strong> ${safe(p.preferred_sim||'—')}</p><p><strong>Preferred class:</strong> ${safe(p.preferred_class||'—')}</p><p><strong>Goal:</strong> ${safe(p.racing_goal||'—')}</p><p>${safe(p.bio||'')}</p></div>`}
-async function renderTraining(c){const {data,error}=await supabase.from('training_sessions').select('*').order('session_date',{ascending:false}).limit(50);c.innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Practice</p><h2>Training</h2></div><button id="newTraining" class="chip-btn">+ Session</button></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(t=>`<div class="event-card"><div class="event-top"><div><strong>${safe(t.title)}</strong><p>${safe(t.simulation||'')} · ${safe(t.track||'')}</p></div><span class="status-pill">${safe(t.status||'planned')}</span></div><div class="event-meta"><div class="meta-box"><small>Date</small><span>${fmtDate(t.session_date)} ${fmtTime(t.start_time)}</span></div><div class="meta-box"><small>Duration</small><span>${t.duration_minutes||'—'} min</span></div></div>${t.notes?`<p>${safe(t.notes)}</p>`:''}</div>`).join(''):empty('No training sessions'))}</div>`;$('#newTraining').onclick=()=>openDialog('New training session',`<div class="dialog-grid">${field('Title','trTitle')}${field('Simulation','trSim')}${field('Track','trTrack')}${field('Date','trDate','date')}${field('Start time','trTime','time')}${field('Duration minutes','trDur','number','60')}<div class="dialog-field"><label>Notes</label><textarea id="trNotes"></textarea></div></div>`,[{label:'Create',primary:true,run:async()=>{const {error}=await supabase.from('training_sessions').insert({title:$('#trTitle').value.trim(),scope:'team',simulation:$('#trSim').value.trim(),track:$('#trTrack').value.trim(),session_date:$('#trDate').value,start_time:$('#trTime').value||null,duration_minutes:Number($('#trDur').value)||60,notes:$('#trNotes').value.trim(),status:'planned',created_by:state.session.user.id});if(error){toast(error.message,'error');return false}renderTraining(c);return true}}])}
-async function renderResults(c){const {data,error}=await supabase.from('results').select('*').order('created_at',{ascending:false}).limit(50);c.innerHTML=`<div class="page-heading"><p class="eyebrow">Performance</p><h2>Results</h2></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(r=>`<div class="result-card"><div><strong>${safe(r.simulation||'Result')} · ${safe(r.track||'')}</strong><p>Q P${r.qualifying_position??'—'} · Start P${r.start_position??'—'} → Finish P${r.finish_position??'—'}</p><p>${safe(r.vehicle||'')} · Incidents ${r.incidents??'—'} · Fastest ${safe(r.fastest_lap||'—')}${r.split_number?` · Split ${r.split_number}/${r.split_total||'?'}`:''}</p></div></div>`).join(''):empty('No results'))}</div>`}
-async function renderRules(c){const {data,error}=await supabase.from('team_rules').select('*').eq('active',true).order('sort_order');c.innerHTML=`<div class="page-heading"><p class="eyebrow">Governance</p><h2>Rules</h2></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(r=>`<div class="rule-card"><div><span class="tag">${safe(r.category||'General')}</span><strong style="display:block;margin-top:10px">${safe(r.title)}</strong><p>${safe(r.body)}</p></div></div>`).join(''):empty('No active rules'))}</div>`}
-async function renderFiles(c){const {data,error}=await supabase.from('team_files').select('*').order('created_at',{ascending:false}).limit(50);c.innerHTML=`<div class="page-heading"><p class="eyebrow">Resources</p><h2>Files</h2></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(f=>`<a class="file-card" href="${safe(f.external_url||f.storage_url||'#')}" target="_blank" rel="noopener"><div class="card-icon">↗</div><div><strong>${safe(f.name)}</strong><p>${safe(f.category||'')} · ${safe(f.description||'')}</p></div></a>`).join(''):empty('No team files'))}</div>`}
-function renderSettings(c){const p=state.profile||{};c.innerHTML=`<div class="page-heading"><p class="eyebrow">Account</p><h2>Settings</h2></div><div class="hero-card"><div class="profile-row"><div class="profile-avatar">${p.avatar_url?`<img src="${safe(p.avatar_url)}" alt="" class="profile-avatar">`:initials(p.full_name||p.nickname)}</div><div><strong>${safe(p.full_name||p.nickname||state.session.user.email)}</strong><p>${safe(state.session.user.email)}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div><div class="divider"></div><div class="settings-row"><div><strong>PWA</strong><p>Add SABIL GR Hub to your Home Screen</p></div><button id="settingsInstall">Install</button></div>${isOwner()?`<div class="settings-row"><div><strong>Owner edit mode</strong><p>Show structural editing controls</p></div><button id="settingsEdit">${state.ownerEdit?'Finish':'Edit'}</button></div>`:''}<div class="settings-row"><div><strong>Session</strong><p>Same Supabase account as Windows</p></div><button id="logoutBtn" class="danger-btn">Log out</button></div></div>`;$('#logoutBtn').onclick=()=>supabase.auth.signOut();$('#settingsInstall').onclick=installPwa;if($('#settingsEdit'))$('#settingsEdit').onclick=()=>{state.ownerEdit=!state.ownerEdit;applyEditMode();renderSettings(c)}}
-
-
-
-// ---- Mobile Voice (Supabase Realtime + WebRTC, compatible with Windows Hub) ----
-function voiceRoomLabel(room){return state.voiceRooms.find(x=>x.room===room)?.label||room}
-function voiceProfileName(uid){const p=state.profiles.find(x=>x.id===uid);return p?.nickname||p?.full_name||'Team member'}
-function voiceProfileImage(uid){return state.profiles.find(x=>x.id===uid)?.avatar_url||''}
-function randomPeerId(){return (crypto.randomUUID?.()||('m-'+Math.random().toString(36).slice(2)+Date.now().toString(36)))}
-async function loadVoiceRooms(){
-  const [cc,entries,eds,events]=await Promise.all([
-    supabase.from('custom_channels').select('*').eq('active',true).eq('channel_type','voice').order('sort_order'),
-    supabase.from('event_entries').select('id,event_id,entry_name,status').order('created_at'),
-    supabase.from('event_entry_drivers').select('entry_id,driver_id'),
-    supabase.from('events').select('id,name,status,event_date').order('event_date')
-  ]);
-  const rooms=[];
-  for(const c of cc.data||[])rooms.push({room:`customvoice:${c.id}`,label:c.name,private:false});
-  const me=state.session?.user?.id, elevated=['owner','admin'].includes(String(effectiveRole(state.profile)||'').toLowerCase());
-  const em=Object.fromEntries((events.data||[]).map(e=>[e.id,e]));
-  for(const en of entries.data||[]){
-    const assigned=(eds.data||[]).some(d=>d.entry_id===en.id&&d.driver_id===me);
-    if(assigned||elevated){const ev=em[en.event_id];rooms.push({room:`entryvoice:${en.id}`,label:`Line-up · ${ev?.name||'Event'} · ${en.entry_name||'Entry'}`,private:true});}
+async function renderTraining(c){
+  const {data,error}=await supabase.from('training_sessions').select('*').order('session_date',{ascending:true}).limit(100);
+  c.innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Practice</p><h2>Training</h2></div><button id="newTraining" class="chip-btn">+ Session</button></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(t=>`<div class="event-card"><div class="event-top"><div><strong>${safe(t.title)}</strong><p>${fmtDate(t.session_date)} · ${fmtTime(t.start_time)}</p></div><span class="status-pill">${safe(t.status||'planned')}</span></div><div class="event-route"><div class="event-route-row"><small>TRACK</small><span>${safe(t.track||'—')}</span></div><div class="event-route-row"><small>SIM</small><span>${safe(t.simulation||'')}</span></div></div><p>${t.duration_minutes||'—'} min${t.notes?` · ${safe(t.notes)}`:''}</p></div>`).join(''):empty('No training sessions'))}</div>`;
+  $('#newTraining').onclick=()=>openDialog('New training session',`<div class="dialog-grid">${field('Title','trTitle')}<div class="dialog-field"><label for="trSim">Simulation</label><select id="trSim"><option>iRacing</option><option>Le Mans Ultimate</option></select></div>${trackField('Track','trTrack')}${field('Date','trDate','date')}${field('Start time','trTime','time')}${field('Duration minutes','trDur','number','60')}<div class="dialog-field"><label>Notes</label><textarea id="trNotes"></textarea></div></div>`,[{label:'Create',primary:true,run:async()=>{
+    const {error}=await supabase.from('training_sessions').insert({title:$('#trTitle').value.trim(),scope:'team',simulation:$('#trSim').value.trim(),track:$('#trTrack').value.trim(),session_date:$('#trDate').value,start_time:$('#trTime').value||null,duration_minutes:Number($('#trDur').value)||60,notes:$('#trNotes').value.trim(),status:'planned',created_by:state.session.user.id});
+    if(error){toast(error.message,'error');return false}renderTraining(c);return true
+  }}])
+}
+async function renderResults(c){
+  if(!state.events.length)await loadEvents();
+  const {data,error}=await supabase.from('results').select('*').order('created_at',{ascending:false}).limit(200);
+  state.results=error?[]:(data||[]);
+  renderResultsContent(c,error)
+}
+function renderResultsContent(c,error=null){
+  const rows=state.results||[],shown=rows.filter(r=>simMatches(r,state.resultFilter)),eventMap=Object.fromEntries((state.events||[]).map(e=>[e.id,e]));
+  c.innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Performance</p><h2>Results</h2></div><button class="chip-btn" data-open-calendar>▦ Calendar</button></div>
+    <div class="sim-filters">${simFilters(rows,state.resultFilter,'data-result-filter')}</div>
+    <div class="card-list">${error?empty(error.message):(shown.length?shown.map(r=>{
+      const ev=eventMap[r.event_id],name=ev?.name||`${r.simulation||'Result'} · ${r.track||''}`;
+      return `<div class="result-card"><div><strong>${safe(name)}</strong><p>${safe(r.simulation||'')} · ${safe(r.track||'')} · ${safe(r.vehicle||'')}</p><div class="result-grid"><span>Q <b>P${r.qualifying_position??'—'}</b></span><span>Start <b>P${r.start_position??'—'}</b></span><span>Finish <b>P${r.finish_position??'—'}</b></span></div><p>Incidents ${r.incidents??'—'} · Fastest ${safe(r.fastest_lap||'—')}${r.split_number?` · Split ${r.split_number}/${r.split_total||'?'}`:''}</p></div></div>`
+    }).join(''):empty('No results for this filter'))}</div>`
+}
+async function renderRules(c){
+  const {data,error}=await supabase.from('team_rules').select('*').eq('active',true).order('sort_order');
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Governance</p><h2>Rules</h2></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(r=>`<div class="rule-card"><div><span class="tag">${safe(r.category||'General')}</span><strong style="display:block;margin-top:10px">${safe(r.title)}</strong><p>${safe(r.body)}</p></div></div>`).join(''):empty('No active rules'))}</div>`
+}
+async function renderFiles(c){
+  const {data,error}=await supabase.from('team_files').select('*').order('created_at',{ascending:false});
+  state.files=error?[]:(data||[]);
+  renderFilesContent(c,error)
+}
+function renderFilesContent(c,error=null){
+  const categories=[...new Set((state.files||[]).map(f=>String(f.category||'files').toLowerCase()))];
+  const filtered=state.fileFilter==='all'?state.files:state.files.filter(f=>String(f.category||'files').toLowerCase()===state.fileFilter);
+  const filterButtons=[['all','All'],...categories.map(x=>[x,fileCategoryLabel(x)])].map(([key,label])=>`<button class="filter-chip ${state.fileFilter===key?'active':''}" data-file-filter="${safe(key)}">${safe(label)} (${key==='all'?state.files.length:state.files.filter(f=>String(f.category||'files').toLowerCase()===key).length})</button>`).join('');
+  c.innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Resources</p><h2>Files</h2></div>${isManagement()&&state.ownerEdit?`<div class="row gap-sm"><button class="chip-btn" data-file-upload="files">+ Files</button><button class="chip-btn" data-file-upload="folder">+ Folder</button></div>`:''}</div>
+    ${isManagement()&&state.ownerEdit?`<div class="file-upload-controls"><label>Upload category<select id="fileUploadCategory"><option value="setups">Setups</option><option value="liveries">Liveries</option><option value="docs">Docs</option><option value="media">Photo & Clip Links</option><option value="files">Files</option></select></label></div>`:''}
+    <div class="sim-filters">${filterButtons}</div>
+    <div class="card-list">${error?empty(error.message):(filtered.length?filtered.map(f=>{
+      const parts=String(f.name||'File').split('/'),display=parts.pop(),folder=parts.join('/');
+      return `<div class="file-card file-card-v05"><div class="card-icon">↗</div><div class="file-main"><strong>${safe(display)}</strong>${folder?`<p class="file-folder">${safe(folder)}</p>`:''}<p>${safe(fileCategoryLabel(f.category))}${f.description?` · ${safe(f.description)}`:''}</p></div><div class="file-actions"><button class="small-action" data-file-download="${f.id}">Download</button>${isManagement()&&state.ownerEdit?`<button class="small-action danger" data-file-delete="${f.id}">Delete</button>`:''}</div></div>`
+    }).join(''):empty('No files in this category'))}</div>`
+}
+async function downloadTeamFile(id){
+  const f=(state.files||[]).find(x=>x.id===id);if(!f)return;
+  if(f.external_url){window.open(f.external_url,'_blank','noopener');return}
+  if(!f.storage_url)return toast('File not found','error');
+  const {data,error}=await supabase.storage.from(FILE_BUCKET).createSignedUrl(f.storage_url,3600);
+  if(error||!data?.signedUrl)return toast(error?.message||'Could not open file','error');
+  window.open(data.signedUrl,'_blank','noopener')
+}
+function pickTeamFiles(folder=false){
+  if(!isManagement()||!state.ownerEdit)return;
+  const input=document.createElement('input');input.type='file';input.multiple=true;
+  if(folder)input.setAttribute('webkitdirectory','');
+  input.onchange=()=>uploadTeamFiles([...input.files]);
+  input.click()
+}
+async function uploadTeamFiles(files){
+  if(!files.length)return;
+  const category=$('#fileUploadCategory')?.value||'files',uid=state.session.user.id;
+  let done=0,failed=0;toast(`Uploading ${files.length} file${files.length===1?'':'s'}…`);
+  for(const file of files){
+    const relative=String(file.webkitRelativePath||file.name||'file').replace(/\\/g,'/').replace(/^\/+/,'').slice(0,500);
+    const objectPath=`${category}/${uid}/${Date.now()}-${crypto.randomUUID()}-${cleanObjectName(file.name)}`;
+    const up=await supabase.storage.from(FILE_BUCKET).upload(objectPath,file,{contentType:file.type||'application/octet-stream',upsert:false});
+    if(up.error){failed++;continue}
+    const row={name:relative||file.name,category,description:null,storage_url:objectPath,external_url:null,access_type:'team',uploaded_by:uid};
+    const ins=await supabase.from('team_files').insert(row);
+    if(ins.error){failed++;await supabase.storage.from(FILE_BUCKET).remove([objectPath]);continue}
+    done++
   }
-  state.voiceRooms=rooms;
-  await syncVoiceRoomWatchers();
-  renderVoiceRooms();
-  renderCurrentVoiceMembers();
+  toast(`${done} uploaded${failed?` · ${failed} failed`:''}`,failed?'error':'info');
+  renderFiles($('#subpageContent'))
 }
-async function syncVoiceRoomWatchers(){
-  state.voiceWatchers??=new Map();
-  const wanted=new Set(state.voiceRooms.map(r=>r.room));
-  for(const [room,ch] of state.voiceWatchers){if(!wanted.has(room)&&room!==state.currentVoiceRoom){try{await supabase.removeChannel(ch)}catch{}state.voiceWatchers.delete(room)}}
-  for(const room of wanted){if(state.voiceWatchers.has(room)||room===state.currentVoiceRoom)continue;const ch=makeVoiceChannel(room,false);state.voiceWatchers.set(room,ch);ch.subscribe();}
+function confirmDeleteTeamFile(id){
+  const f=(state.files||[]).find(x=>x.id===id);if(!f)return;
+  openDialog('Delete file',`<p>Delete <strong>${safe(f.name)}</strong>?</p>`,[{label:'Delete',danger:true,run:async()=>{await deleteTeamFile(id);return true}}])
 }
-function makeVoiceChannel(room,active){
-  const key=`mobile:${state.session.user.id}:${randomPeerId()}`;
-  const ch=supabase.channel(`sabil-voice:${room}`,{config:{private:false,broadcast:{self:false},presence:{key}}});
-  ch.on('presence',{event:'sync'},()=>{
-    const members=presenceMembers(ch);state.voiceRoomMembers[room]=members;renderVoiceRooms();
-    if(active&&state.currentVoiceRoom===room){renderCurrentVoiceMembers();syncVoicePeers(members);}
-  });
-  if(active)ch.on('broadcast',{event:'signal'},({payload})=>{if(payload?.target===state.voicePeerId)handleVoiceSignal(payload.from,payload.data)});
-  return ch;
+async function deleteTeamFile(id){
+  const f=(state.files||[]).find(x=>x.id===id);if(!f)return;
+  if(f.storage_url&&!/^https?:/i.test(f.storage_url)){try{await supabase.storage.from(FILE_BUCKET).remove([f.storage_url])}catch{}}
+  const {error}=await supabase.from('team_files').delete().eq('id',id);
+  if(error){toast(error.message,'error');return}
+  state.files=state.files.filter(x=>x.id!==id);renderFilesContent($('#subpageContent'));toast('File deleted')
 }
-function presenceMembers(ch){
-  const out=[];for(const [key,arr] of Object.entries(ch.presenceState()||{}))for(const p of arr||[]){if(p?.userId)out.push({peerId:p.peerId||key,userId:p.userId,userName:p.userName||voiceProfileName(p.userId),profileImage:p.profileImage||voiceProfileImage(p.userId)})}return out;
-}
-function renderVoiceRooms(){
-  const box=$('#voiceRoomsList');if(!box)return;if(!state.voiceRooms.length){box.innerHTML=empty('No voice channels available');return}
-  box.innerHTML=state.voiceRooms.map(r=>{const members=state.voiceRoomMembers[r.room]||[],on=state.currentVoiceRoom===r.room;return `<div class="list-card voice-room"><div class="voice-room-main"><div class="card-icon">${r.private?'🔒':'🎙'}</div><div class="voice-room-meta"><strong>${safe(r.label)}</strong><p>${r.private?'Private line-up room':'Team voice channel'} · <span class="voice-room-count ${members.length?'live':''}">${members.length} connected</span></p></div></div><button class="voice-join ${on?'connected':''}" data-voice-room="${safe(r.room)}">${on?'Joined':'Join'}</button></div>`}).join('');
-}
-$('#voiceRoomsList').onclick=e=>{const b=e.target.closest('[data-voice-room]');if(!b)return;if(state.currentVoiceRoom===b.dataset.voiceRoom)return;joinVoice(b.dataset.voiceRoom)};
-$('#refreshVoice').onclick=loadVoiceRooms;
-$('#leaveVoiceButton').onclick=leaveVoice;
-$('#muteVoiceButton').onclick=()=>{state.voiceMuted=!state.voiceMuted;for(const t of state.voiceStream?.getAudioTracks?.()||[])t.enabled=!state.voiceMuted;$('#muteVoiceButton').textContent=state.voiceMuted?'Unmute':'Mute';$('#muteVoiceButton').classList.toggle('active',state.voiceMuted)};
-async function joinVoice(room){
-  await leaveVoice(false);
-  try{state.voiceStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false})}catch(e){toast('Microphone permission is required for voice.','error');return}
-  state.currentVoiceRoom=room;state.voicePeerId=randomPeerId();state.voiceMuted=false;
-  $('#voiceStatus').textContent=`Connecting to ${voiceRoomLabel(room)}…`;$('#voiceStatusSub').textContent='Microphone active';$('#muteVoiceButton').classList.remove('hidden');$('#leaveVoiceButton').classList.remove('hidden');
-  const oldWatcher=state.voiceWatchers?.get(room);if(oldWatcher){try{await supabase.removeChannel(oldWatcher)}catch{}state.voiceWatchers.delete(room)}
-  const ch=makeVoiceChannel(room,true);state.voiceChannel=ch;
-  await new Promise((resolve,reject)=>{let done=false;const timer=setTimeout(()=>{if(!done){done=true;reject(new Error('Voice room timeout'))}},8000);ch.subscribe(async status=>{if(status==='SUBSCRIBED'&&!done){done=true;clearTimeout(timer);try{await ch.track({peerId:state.voicePeerId,userId:state.session.user.id,userName:state.profile?.full_name||state.profile?.nickname||'Team member',profileImage:state.profile?.avatar_url||''});resolve()}catch(e){reject(e)}}})}).catch(async e=>{toast(e.message||'Voice connection failed','error');await leaveVoice();throw e});
-  $('#voiceStatus').textContent=`Connected · ${voiceRoomLabel(room)}`;$('#voiceStatusSub').textContent='Mobile ↔ Windows voice active';state.voiceRoomMembers[room]=presenceMembers(ch);renderVoiceRooms();renderCurrentVoiceMembers();syncVoicePeers(state.voiceRoomMembers[room]);
-}
-async function leaveVoice(rewatch=true){
-  const room=state.currentVoiceRoom,ch=state.voiceChannel;
-  for(const pc of state.voicePeers.values())try{pc.close()}catch{}state.voicePeers.clear();
-  $('#remoteAudio').innerHTML='';for(const t of state.voiceStream?.getTracks?.()||[])try{t.stop()}catch{}state.voiceStream=null;
-  state.currentVoiceRoom=null;state.voicePeerId=null;state.voiceChannel=null;state.voiceMuted=false;
-  if(ch){try{await ch.untrack()}catch{}try{await supabase.removeChannel(ch)}catch{}}
-  $('#voiceStatus').textContent='Not connected';$('#voiceStatusSub').textContent='Choose a room to join.';$('#muteVoiceButton').classList.add('hidden');$('#leaveVoiceButton').classList.add('hidden');$('#muteVoiceButton').textContent='Mute';$('#muteVoiceButton').classList.remove('active');
-  if(room&&rewatch){const watcher=makeVoiceChannel(room,false);state.voiceWatchers??=new Map();state.voiceWatchers.set(room,watcher);watcher.subscribe()}
-  renderVoiceRooms();renderCurrentVoiceMembers();
-}
-function renderCurrentVoiceMembers(){
-  const box=$('#voiceMembersList');if(!box)return;if(!state.currentVoiceRoom){box.innerHTML=empty('Join a room to see members');return}
-  const members=state.voiceRoomMembers[state.currentVoiceRoom]||[];if(!members.length){box.innerHTML=empty('Connecting…');return}
-  box.innerHTML=members.map(m=>{const self=m.peerId===state.voicePeerId,v=state.voiceVolumes[m.peerId]??1;return `<div class="list-card voice-member"><div class="voice-avatar">${m.profileImage?`<img src="${safe(m.profileImage)}" alt="">`:initials(m.userName)}</div><div><strong>${safe(m.userName)}${self?' · You':''}</strong><p>${self?(state.voiceMuted?'Muted':'Microphone active'):'Connected'}</p></div>${self?'':`<label class="volume-wrap"><span>Vol</span><input type="range" min="0" max="1" step="0.05" value="${v}" data-peer-volume="${safe(m.peerId)}"></label>`}</div>`}).join('');
-}
-$('#voiceMembersList').oninput=e=>{const i=e.target.closest('[data-peer-volume]');if(!i)return;state.voiceVolumes[i.dataset.peerVolume]=Number(i.value);document.querySelectorAll(`audio[data-peer="${CSS.escape(i.dataset.peerVolume)}"]`).forEach(a=>a.volume=Number(i.value))};
-function syncVoicePeers(members){
-  if(!state.currentVoiceRoom)return;const others=(members||[]).filter(m=>m.peerId!==state.voicePeerId),alive=new Set(others.map(m=>m.peerId));
-  for(const [id,pc] of state.voicePeers)if(!alive.has(id)){pc.close();state.voicePeers.delete(id);document.querySelectorAll(`audio[data-peer="${CSS.escape(id)}"]`).forEach(x=>x.remove())}
-  for(const m of others)if(!state.voicePeers.has(m.peerId))makeVoicePeer(m.peerId,String(state.voicePeerId)<String(m.peerId));renderCurrentVoiceMembers();
-}
-function makeVoicePeer(peerId,initiator){
-  if(state.voicePeers.has(peerId))return state.voicePeers.get(peerId);const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});state.voicePeers.set(peerId,pc);
-  for(const t of state.voiceStream?.getAudioTracks?.()||[])pc.addTrack(t,state.voiceStream);
-  pc.onicecandidate=e=>{if(e.candidate)sendVoiceSignal(peerId,{candidate:e.candidate})};
-  pc.ontrack=e=>{if(e.track.kind!=='audio')return;let el=document.querySelector(`audio[data-peer="${CSS.escape(peerId)}"]`);if(!el){el=document.createElement('audio');el.autoplay=true;el.playsInline=true;el.dataset.peer=peerId;el.volume=state.voiceVolumes[peerId]??1;$('#remoteAudio').appendChild(el)}el.srcObject=e.streams[0]||new MediaStream([e.track]);el.play?.().catch(()=>{})};
-  pc.onconnectionstatechange=()=>{if(['failed','closed'].includes(pc.connectionState)){pc.close();state.voicePeers.delete(peerId)}};
-  if(initiator)pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=>sendVoiceSignal(peerId,{sdp:pc.localDescription})).catch(e=>console.warn('voice offer',e));return pc;
-}
-async function sendVoiceSignal(target,data){if(!state.voiceChannel||!state.voicePeerId)return;try{await state.voiceChannel.send({type:'broadcast',event:'signal',payload:{from:state.voicePeerId,target,data}})}catch(e){console.warn('voice signal send',e)}}
-async function handleVoiceSignal(from,data){
-  const pc=state.voicePeers.get(from)||makeVoicePeer(from,false);
-  try{if(data?.sdp){await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));if(data.sdp.type==='offer'){const ans=await pc.createAnswer();await pc.setLocalDescription(ans);await sendVoiceSignal(from,{sdp:pc.localDescription})}}else if(data?.candidate){await pc.addIceCandidate(new RTCIceCandidate(data.candidate))}}catch(e){console.warn('voice signal',e)}
+function renderSettings(c){
+  const p=state.profile||{};
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Account</p><h2>Settings</h2></div><div class="hero-card"><div class="profile-row"><div class="profile-avatar">${p.avatar_url?`<img src="${safe(p.avatar_url)}" alt="" class="profile-avatar">`:initials(p.full_name||p.nickname)}</div><div><strong>${safe(p.full_name||p.nickname||state.session.user.email)}</strong><p>${safe(state.session.user.email)}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div><div class="divider"></div><div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.5 · same Supabase data as Desktop</p></div><button id="settingsInstall">Install</button></div>${isManagement()?`<div class="settings-row"><div><strong>Edit mode</strong><p>Announcements, events and file management</p></div><button id="settingsEdit">${state.ownerEdit?'Finish':'Edit'}</button></div>`:''}<div class="settings-row"><div><strong>Communication</strong><p>Chat and voice are handled in Discord</p></div></div><div class="settings-row"><div><strong>Session</strong><p>${safe(state.session.user.email)}</p></div><button id="logoutBtn" class="danger-btn">Log out</button></div></div>`;
+  $('#logoutBtn').onclick=()=>supabase.auth.signOut();$('#settingsInstall').onclick=installPwa;
+  if($('#settingsEdit'))$('#settingsEdit').onclick=()=>{state.ownerEdit=!state.ownerEdit;applyEditMode();renderSettings(c)}
 }
 
-function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[];if(state.currentVoiceRoom)leaveVoice(false);for(const ch of state.voiceWatchers?.values?.()||[])try{supabase.removeChannel(ch)}catch{}state.voiceWatchers?.clear?.()}
-function startRealtime(){cleanupRealtime();const specs=[['messages',()=>state.currentPage==='chat'&&loadMessages()],['direct_messages',()=>state.currentPage==='chat'&&loadDMs()],['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['notifications',()=>state.currentPage==='home'&&loadHome()],['custom_channels',()=>state.currentPage==='chat'&&loadChannels()],['polls',()=>state.currentPage==='chat'&&loadPolls()],['poll_votes',()=>state.currentPage==='chat'&&loadPolls()]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v02-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
+function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[]}
+function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&loadEvents()],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>state.currentPage==='subpage'&&state.subpageKind==='training'&&renderTraining($('#subpageContent'))],['profiles',()=>state.currentPage==='subpage'&&state.subpageKind==='team'&&renderTeam($('#subpageContent'))]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v05-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;$('#installButton').classList.remove('hidden')});
 $('#installButton').onclick=installPwa;
