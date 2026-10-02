@@ -7,7 +7,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const state={session:null,profile:null,profiles:[],currentPage:'home',subpageKind:null,subscriptions:[],deferredInstall:null,ownerEdit:false,events:[],eventFilter:'all',eventCalendarOpen:false,results:[],resultFilter:'all',announcements:[],files:[],fileFilter:'all'};
+const state={session:null,profile:null,profiles:[],currentPage:'home',subpageKind:null,subscriptions:[],deferredInstall:null,ownerEdit:false,events:[],eventFilter:'all',eventCalendarOpen:false,results:[],resultFilter:'all',announcements:[],files:[],fileFilter:'all',avatarCache:new Map()};
 
 const safe=(v='')=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const initials=(n='?')=>n.trim().split(/\s+/).slice(0,2).map(x=>x[0]?.toUpperCase()).join('')||'?';
@@ -20,7 +20,8 @@ const roleRank=r=>({owner:3,admin:2,driver:1}[String(r||'').toLowerCase()]||0);
 const effectiveRole=p=>roleRank(p?.secondary_role)>roleRank(p?.role)?p.secondary_role:p?.role;
 const isOwner=()=>effectiveRole(state.profile)==='owner';
 const isManagement=()=>['owner','admin'].includes(String(effectiveRole(state.profile)||'').toLowerCase());
-const hasTag=(p,t)=>Array.isArray(p?.role_tags)&&p.role_tags.some(x=>String(x).toLowerCase()===t.toLowerCase());
+const normTag=v=>String(v||'').toLowerCase().replace(/[\s-]+/g,'_');
+const hasTag=(p,t)=>Array.isArray(p?.role_tags)&&p.role_tags.some(x=>normTag(x)===normTag(t));
 const simKey=v=>{const x=String(v||'').trim().toLowerCase();if(x.includes('iracing'))return 'iracing';if(x==='lmu'||x.includes('le mans'))return 'lmu';return 'other'};
 const simMatches=(row,filter)=>filter==='all'||simKey(row?.simulation)===filter;
 const simCount=(rows,filter)=>filter==='all'?rows.length:rows.filter(r=>simMatches(r,filter)).length;
@@ -30,6 +31,29 @@ function lmuTrackOptions(){const existing=(state.events||[]).filter(e=>simKey(e.
 const trackField=(label,id,value='')=>`<div class="dialog-field"><label for="${id}">${safe(label)}</label><input id="${id}" list="lmuTrackOptions" value="${safe(value)}"><datalist id="lmuTrackOptions">${lmuTrackOptions()}</datalist></div>`;
 
 const FILE_BUCKET='sabil-files';
+const avatarSrc=p=>p?.avatarDisplayUrl||p?.avatar_url||'';
+async function resolveStorageUrl(path,ttl=21600){
+  const raw=String(path||'').trim();
+  if(!raw)return'';
+  if(/^https?:\/\//i.test(raw)||/^data:/i.test(raw))return raw;
+  if(state.avatarCache.has(raw))return state.avatarCache.get(raw);
+  try{
+    const {data,error}=await supabase.storage.from(FILE_BUCKET).createSignedUrl(raw,ttl);
+    const url=!error&&data?.signedUrl?data.signedUrl:raw;
+    state.avatarCache.set(raw,url);
+    return url;
+  }catch{
+    return raw;
+  }
+}
+async function hydrateAvatar(p){
+  if(!p)return p;
+  return {...p,avatarDisplayUrl:await resolveStorageUrl(p.avatar_url)};
+}
+function avatarHtml(p,cls='profile-avatar'){
+  const src=avatarSrc(p);
+  return src?`<img src="${safe(src)}" alt="" class="${cls}" loading="lazy" referrerpolicy="no-referrer">`:initials(p?.full_name||p?.nickname);
+}
 const eventSortValue=e=>e?.event_date?Date.parse(`${e.event_date}T00:00:00`):Number.MAX_SAFE_INTEGER;
 const sortEventsByDate=list=>[...(list||[])].sort((x,y)=>eventSortValue(x)-eventSortValue(y)||String(x.name||'').localeCompare(String(y.name||'')));
 const eventDateLabel=e=>{
@@ -70,16 +94,28 @@ const {data:{session}}=await supabase.auth.getSession();state.session=session;se
 function showLogin(){cleanupRealtime();$('#loginView').classList.remove('hidden');$('#appView').classList.add('hidden')}
 async function enterApp(){ $('#loginView').classList.add('hidden');$('#appView').classList.remove('hidden');await loadProfile();await loadProfiles();await Promise.allSettled([loadHome(),loadEvents(),loadAnnouncements(),loadPolls()]);startRealtime(); }
 
-async function loadProfile(){const {data,error}=await supabase.from('profiles').select('*').eq('id',state.session.user.id).maybeSingle();if(error)toast(error.message,'error');state.profile=data||{id:state.session.user.id,full_name:state.session.user.email,role:'driver'};$('#avatarInitials').textContent=initials(state.profile.full_name||state.profile.nickname);$('#editModeButton').classList.toggle('hidden',!isManagement());applyEditMode()}
-async function loadProfiles(){const {data,error}=await supabase.from('profiles').select('*').eq('active',true).order('full_name');if(error){toast(error.message,'error');return}state.profiles=data||[]}
+async function loadProfile(){
+  const {data,error}=await supabase.from('profiles').select('*').eq('id',state.session.user.id).maybeSingle();
+  if(error)toast(error.message,'error');
+  state.profile=await hydrateAvatar(data||{id:state.session.user.id,full_name:state.session.user.email,role:'driver'});
+  const topAvatar=$('#avatarInitials');
+  if(topAvatar)topAvatar.innerHTML=avatarSrc(state.profile)?`<img src="${safe(avatarSrc(state.profile))}" alt="" class="top-avatar-image">`:safe(initials(state.profile.full_name||state.profile.nickname));
+  $('#editModeButton').classList.toggle('hidden',!isOwner());
+  applyEditMode()
+}
+async function loadProfiles(){
+  const {data,error}=await supabase.from('profiles').select('*').eq('active',true).order('full_name');
+  if(error){toast(error.message,'error');return}
+  state.profiles=await Promise.all((data||[]).map(hydrateAvatar))
+}
 
-function applyEditMode(){document.body.classList.toggle('owner-editing',isManagement()&&state.ownerEdit);$('#editModeButton').textContent=state.ownerEdit?'Finish edit':'Edit'}
-$('#editModeButton').onclick=()=>{if(!isManagement())return;state.ownerEdit=!state.ownerEdit;applyEditMode();toast(state.ownerEdit?'Edit mode on':'Edit mode off')};
+function applyEditMode(){if(!isOwner())state.ownerEdit=false;document.body.classList.toggle('owner-editing',isOwner()&&state.ownerEdit);$('#editModeButton').textContent=state.ownerEdit?'Finish edit':'Edit'}
+$('#editModeButton').onclick=()=>{if(!isOwner())return;state.ownerEdit=!state.ownerEdit;applyEditMode();toast(state.ownerEdit?'Edit mode on':'Edit mode off')};
 
 function nav(page){state.currentPage=page;if(page!=='subpage')state.subpageKind=null;$$('.page').forEach(p=>p.classList.add('hidden'));$(`.page[data-page="${page}"]`)?.classList.remove('hidden');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));window.scrollTo(0,0);if(page==='home')loadHome();if(page==='events')loadEvents();if(page==='updates'){loadAnnouncements();loadPolls()}}
 $$('[data-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.nav));$('#profileButton').onclick=()=>showSubpage('settings');$('#backMore').onclick=()=>nav('more');$$('[data-subpage]').forEach(b=>b.onclick=()=>showSubpage(b.dataset.subpage));
 
-function renderHomeProfile(){const p=state.profile||{};$('#homeProfile').innerHTML=`<p class="eyebrow">Signed in</p><h3>${safe(p.full_name||p.nickname||'Team member')}</h3><p>${safe(p.nickname||'')} ${p.race_number?`#${safe(p.race_number)}`:''}</p><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div>`}
+function renderHomeProfile(){const p=state.profile||{};$('#homeProfile').innerHTML=`<div class="profile-row"><div class="profile-avatar">${avatarHtml(p)}</div><div><p class="eyebrow">Signed in</p><h3>${safe(p.full_name||p.nickname||'Team member')}</h3><p>${safe(p.nickname||'')} ${p.race_number?`#${safe(p.race_number)}`:''}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div>`}
 function renderHomeAnnouncement(){
   const box=$('#homeLatestAnnouncement');if(!box)return;
   const x=state.announcements?.[0];
@@ -149,7 +185,6 @@ document.addEventListener('click',e=>{
   const fileFilter=e.target.closest('[data-file-filter]');if(fileFilter){state.fileFilter=fileFilter.dataset.fileFilter||'all';renderFilesContent($('#subpageContent'));return}
   const fileDownload=e.target.closest('[data-file-download]');if(fileDownload){downloadTeamFile(fileDownload.dataset.fileDownload);return}
   const fileDelete=e.target.closest('[data-file-delete]');if(fileDelete){confirmDeleteTeamFile(fileDelete.dataset.fileDelete);return}
-  const fileUpload=e.target.closest('[data-file-upload]');if(fileUpload){pickTeamFiles(fileUpload.dataset.fileUpload==='folder');return}
   const b=e.target.closest('[data-event-id]');if(b){showEventDetail(b.dataset.eventId);return}
   const m=e.target.closest('[data-member-id]');if(m)showMemberProfile(m.dataset.memberId)
 });
@@ -205,7 +240,7 @@ document.addEventListener('click',async e=>{
   toast('Attendance updated');showEventDetail(b.dataset.event)
 });
 $('#newEventButton').onclick=()=>{
-  if(!isManagement()||!state.ownerEdit)return;
+  if(!isOwner()||!state.ownerEdit)return;
   openDialog('Create event',`<div class="dialog-grid">
     ${field('Name','evName')}
     ${field('Championship / series','evChamp')}
@@ -240,7 +275,7 @@ async function loadAnnouncements(){
     ? state.announcements.map(x=>`<div class="announcement-card ${x.highlighted?'highlighted':''}">
         ${x.highlighted?'<span class="announcement-dot" aria-hidden="true"></span>':''}
         <div class="event-top"><div><strong>${safe(x.title)}</strong><p class="announcement-meta">${safe(creatorName(x.created_by))} · ${fmtTs(x.created_at)}</p></div>
-          ${isManagement()&&state.ownerEdit?`<button class="mini-action ${x.highlighted?'active':''}" data-announcement-mark="${x.id}" data-value="${x.highlighted?'false':'true'}">${x.highlighted?'Unmark':'Mark'}</button>`:''}
+          ${isOwner()&&state.ownerEdit?`<button class="mini-action ${x.highlighted?'active':''}" data-announcement-mark="${x.id}" data-value="${x.highlighted?'false':'true'}">${x.highlighted?'Unmark':'Mark'}</button>`:''}
         </div>
         <p class="announcement-body">${safe(x.message||'')}</p>
       </div>`).join('')
@@ -248,14 +283,14 @@ async function loadAnnouncements(){
   renderHomeAnnouncement();
 }
 async function toggleAnnouncementHighlight(id,value){
-  if(!isManagement()||!state.ownerEdit)return;
+  if(!isOwner()||!state.ownerEdit)return;
   const {error}=await supabase.from('announcements').update({highlighted:!!value}).eq('id',id);
   if(error)return toast(error.message,'error');
   loadAnnouncements();
 }
 $('#refreshUpdates').onclick=()=>Promise.allSettled([loadAnnouncements(),loadPolls()]);
 $('#newAnnouncement').onclick=()=>{
-  if(!isManagement()||!state.ownerEdit)return;
+  if(!isOwner()||!state.ownerEdit)return;
   openDialog('New announcement',
     `<div class="dialog-grid">
       ${field('Title','annTitle')}
@@ -312,8 +347,73 @@ $('#newPollButton').onclick=()=>openDialog('Create poll',
 );
 
 async function showSubpage(kind){nav('subpage');state.subpageKind=kind;const c=$('#subpageContent');c.innerHTML=empty('Loading…');if(kind==='team')return renderTeam(c);if(kind==='training')return renderTraining(c);if(kind==='results')return renderResults(c);if(kind==='rules')return renderRules(c);if(kind==='files')return renderFiles(c);if(kind==='settings')return renderSettings(c)}
-async function renderTeam(c){await loadProfiles();c.innerHTML=`<div class="page-heading"><p class="eyebrow">Members</p><h2>Team</h2></div><div class="card-list">${state.profiles.map(p=>`<button class="member-card" data-member-id="${p.id}"><div class="profile-avatar">${p.avatar_url?`<img src="${safe(p.avatar_url)}" alt="" class="profile-avatar">`:initials(p.full_name||p.nickname)}</div><div><strong>${safe(p.full_name||p.nickname||'Driver')} ${p.race_number?`#${safe(p.race_number)}`:''}</strong><p>${safe(effectiveRole(p)||'driver')} · ${safe(p.country||'')}</p><div class="profile-tags">${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div></div></button>`).join('')}</div>`}
-function showMemberProfile(id){const p=state.profiles.find(x=>x.id===id);if(!p)return;nav('subpage');$('#subpageContent').innerHTML=`<div class="page-heading"><p class="eyebrow">Driver profile</p><h2>${safe(p.full_name||p.nickname||'Driver')}</h2></div><div class="hero-card"><div class="profile-row"><div class="profile-avatar">${p.avatar_url?`<img src="${safe(p.avatar_url)}" class="profile-avatar" alt="">`:initials(p.full_name||p.nickname)}</div><div><strong>${safe(p.nickname||p.full_name||'')}</strong><p>${p.race_number?`#${safe(p.race_number)} · `:''}${safe(p.country||'')}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div><div class="divider"></div><p><strong>Preferred sim:</strong> ${safe(p.preferred_sim||'—')}</p><p><strong>Preferred class:</strong> ${safe(p.preferred_class||'—')}</p><p><strong>Goal:</strong> ${safe(p.racing_goal||'—')}</p><p>${safe(p.bio||'')}</p></div>`}
+async function renderTeam(c){
+  await loadProfiles();
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Members</p><h2>Team</h2></div><div class="card-list">${state.profiles.map(p=>`<button class="member-card" data-member-id="${p.id}"><div class="profile-avatar">${avatarHtml(p)}</div><div><strong>${safe(p.full_name||p.nickname||'Driver')} ${p.race_number?`#${safe(p.race_number)}`:''}</strong><p>${safe(effectiveRole(p)||'driver')} · ${safe(p.country||'')}</p><div class="profile-tags">${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div></div></button>`).join('')}</div>`
+}
+function showMemberProfile(id){
+  const p=state.profiles.find(x=>x.id===id);if(!p)return;
+  nav('subpage');state.subpageKind='member';
+  $('#subpageContent').innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Driver profile</p><h2>${safe(p.full_name||p.nickname||'Driver')}</h2></div>${isOwner()&&state.ownerEdit?`<button class="chip-btn" id="editMemberButton">Edit member</button>`:''}</div>
+    <div class="hero-card">
+      <div class="profile-row"><div class="profile-avatar">${avatarHtml(p)}</div><div><strong>${safe(p.nickname||p.full_name||'')}</strong><p>${p.race_number?`#${safe(p.race_number)} · `:''}${safe(p.country||'')}</p></div></div>
+      <div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div>
+      <div class="divider"></div>
+      <p><strong>Preferred sim:</strong> ${safe(p.preferred_sim||'—')}</p>
+      <p><strong>Preferred class:</strong> ${safe(p.preferred_class||'—')}</p>
+      <p><strong>Goal:</strong> ${safe(p.racing_goal||'—')}</p>
+      <p class="prewrap">${safe(p.bio||'')}</p>
+    </div>`;
+  if($('#editMemberButton'))$('#editMemberButton').onclick=()=>openMemberEditor(id)
+}
+function roleOptions(selected,allowBlank=false){
+  const opts=[['driver','Driver'],['admin','Admin'],['owner','Owner']];
+  return `${allowBlank?`<option value="">None</option>`:''}${opts.map(([v,l])=>`<option value="${v}" ${selected===v?'selected':''}>${l}</option>`).join('')}`
+}
+function openMemberEditor(id){
+  if(!isOwner()||!state.ownerEdit)return;
+  const p=state.profiles.find(x=>x.id===id);if(!p)return;
+  const primary=String(p.role||'driver'),secondary=String(p.secondary_role||'');
+  openDialog(`Edit ${p.full_name||p.nickname||'member'}`,`<div class="dialog-grid">
+    ${field('Full name','memberName','text',p.full_name||'')}
+    ${field('Nickname','memberNick','text',p.nickname||'')}
+    ${field('Race number','memberNumber','text',p.race_number||'')}
+    ${field('Country','memberCountry','text',p.country||'')}
+    <div class="dialog-field"><label>Primary role</label><select id="memberPrimaryRole">${roleOptions(primary)}</select></div>
+    <div class="dialog-field"><label>Second role</label><select id="memberSecondaryRole">${roleOptions(secondary,true)}</select></div>
+    <label class="dialog-check"><input id="memberLMU" type="checkbox" ${hasTag(p,'lmu_driver')?'checked':''}> LMU Driver</label>
+    <label class="dialog-check"><input id="memberIRacing" type="checkbox" ${hasTag(p,'iracing_driver')?'checked':''}> iRacing Driver</label>
+    ${field('Preferred sim','memberPreferredSim','text',p.preferred_sim||'')}
+    ${field('Preferred class','memberPreferredClass','text',p.preferred_class||'')}
+    ${field('Racing goal','memberGoal','text',p.racing_goal||'')}
+    <div class="dialog-field"><label>Bio</label><textarea id="memberBio">${safe(p.bio||'')}</textarea></div>
+  </div>`,[{label:'Save',primary:true,run:async()=>{
+    const primaryRole=$('#memberPrimaryRole').value,secondRole=$('#memberSecondaryRole').value;
+    if(primaryRole===secondRole&&secondRole){toast('Primary and second role must be different','error');return false}
+    if(p.id===state.session.user.id&&effectiveRole(p)==='owner'&&primaryRole!=='owner'&&secondRole!=='owner'){toast('You cannot remove your own Owner role','error');return false}
+    const profilePatch={
+      full_name:$('#memberName').value.trim()||null,
+      nickname:$('#memberNick').value.trim()||null,
+      race_number:$('#memberNumber').value.trim()||null,
+      country:$('#memberCountry').value.trim()||null,
+      preferred_sim:$('#memberPreferredSim').value.trim()||null,
+      preferred_class:$('#memberPreferredClass').value.trim()||null,
+      racing_goal:$('#memberGoal').value.trim()||null,
+      bio:$('#memberBio').value.trim()||null,
+      role_tags:[$('#memberLMU').checked?'lmu_driver':null,$('#memberIRacing').checked?'iracing_driver':null].filter(Boolean)
+    };
+    const roleChange=await supabase.rpc('set_user_roles',{target_user:id,primary_role:primaryRole,second_role:secondRole||null});
+    if(roleChange.error){toast(roleChange.error.message,'error');return false}
+    const {error}=await supabase.from('profiles').update(profilePatch).eq('id',id);
+    if(error){toast(error.message,'error');return false}
+    await loadProfiles();
+    if(id===state.session.user.id)await loadProfile();
+    showMemberProfile(id);
+    toast('Member updated');
+    return true
+  }}])
+}
+
 async function renderTraining(c){
   const {data,error}=await supabase.from('training_sessions').select('*').order('session_date',{ascending:true}).limit(100);
   c.innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Practice</p><h2>Training</h2></div><button id="newTraining" class="chip-btn">+ Session</button></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(t=>`<div class="event-card"><div class="event-top"><div><strong>${safe(t.title)}</strong><p>${fmtDate(t.session_date)} · ${fmtTime(t.start_time)}</p></div><span class="status-pill">${safe(t.status||'planned')}</span></div><div class="event-route"><div class="event-route-row"><small>TRACK</small><span>${safe(t.track||'—')}</span></div><div class="event-route-row"><small>SIM</small><span>${safe(t.simulation||'')}</span></div></div><p>${t.duration_minutes||'—'} min${t.notes?` · ${safe(t.notes)}`:''}</p></div>`).join(''):empty('No training sessions'))}</div>`;
@@ -338,9 +438,46 @@ function renderResultsContent(c,error=null){
     }).join(''):empty('No results for this filter'))}</div>`
 }
 async function renderRules(c){
-  const {data,error}=await supabase.from('team_rules').select('*').eq('active',true).order('sort_order');
-  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Governance</p><h2>Rules</h2></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(r=>`<div class="rule-card"><div><span class="tag">${safe(r.category||'General')}</span><strong style="display:block;margin-top:10px">${safe(r.title)}</strong><p>${safe(r.body)}</p></div></div>`).join(''):empty('No active rules'))}</div>`
+  const {data,error}=await supabase.from('team_rules').select('*').eq('active',true).order('sort_order').order('created_at');
+  const rows=data||[];
+  c.innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Governance</p><h2>Rules</h2></div>${isOwner()&&state.ownerEdit?`<button class="chip-btn" id="newRuleButton">+ Rule</button>`:''}</div>
+    <div class="card-list">${error?empty(error.message):(rows.length?rows.map(r=>`<div class="rule-card"><div class="rule-card-head"><div><span class="tag">${safe(r.category||'General')}</span><strong style="display:block;margin-top:10px">${safe(r.title)}</strong></div>${isOwner()&&state.ownerEdit?`<button class="mini-action" data-rule-edit="${r.id}">Edit</button>`:''}</div><p class="prewrap">${safe(r.body)}</p></div>`).join(''):empty('No active rules'))}</div>`;
+  if($('#newRuleButton'))$('#newRuleButton').onclick=()=>openRuleEditor(null,rows,c);
+  c.querySelectorAll('[data-rule-edit]').forEach(b=>b.onclick=()=>openRuleEditor(rows.find(r=>r.id===b.dataset.ruleEdit),rows,c))
 }
+function openRuleEditor(rule,rows,c){
+  if(!isOwner()||!state.ownerEdit)return;
+  const r=rule||{};
+  openDialog(rule?'Edit rule':'New rule',`<div class="dialog-grid">
+    ${field('Title','ruleTitle','text',r.title||'')}
+    ${field('Category','ruleCategory','text',r.category||'General')}
+    ${field('Sort order','ruleOrder','number',String(r.sort_order??100))}
+    <div class="dialog-field"><label>Rule text</label><textarea id="ruleBody">${safe(r.body||'')}</textarea></div>
+  </div>`,[
+    ...(rule?[{label:'Remove',danger:true,run:async()=>{
+      const {error}=await supabase.from('team_rules').update({active:false}).eq('id',rule.id);
+      if(error){toast(error.message,'error');return false}
+      await renderRules(c);toast('Rule removed');return true
+    }}]:[]),
+    {label:'Save',primary:true,run:async()=>{
+      const payload={
+        title:$('#ruleTitle').value.trim(),
+        category:$('#ruleCategory').value.trim()||'General',
+        sort_order:Number($('#ruleOrder').value)||100,
+        body:$('#ruleBody').value.trim(),
+        active:true
+      };
+      if(!payload.title||!payload.body){toast('Title and rule text are required','error');return false}
+      let q;
+      if(rule)q=supabase.from('team_rules').update(payload).eq('id',rule.id);
+      else q=supabase.from('team_rules').insert({...payload,created_by:state.session.user.id});
+      const {error}=await q;
+      if(error){toast(error.message,'error');return false}
+      await renderRules(c);toast(rule?'Rule updated':'Rule created');return true
+    }}
+  ])
+}
+
 async function renderFiles(c){
   const {data,error}=await supabase.from('team_files').select('*').order('created_at',{ascending:false});
   state.files=error?[]:(data||[]);
@@ -350,12 +487,11 @@ function renderFilesContent(c,error=null){
   const categories=[...new Set((state.files||[]).map(f=>String(f.category||'files').toLowerCase()))];
   const filtered=state.fileFilter==='all'?state.files:state.files.filter(f=>String(f.category||'files').toLowerCase()===state.fileFilter);
   const filterButtons=[['all','All'],...categories.map(x=>[x,fileCategoryLabel(x)])].map(([key,label])=>`<button class="filter-chip ${state.fileFilter===key?'active':''}" data-file-filter="${safe(key)}">${safe(label)} (${key==='all'?state.files.length:state.files.filter(f=>String(f.category||'files').toLowerCase()===key).length})</button>`).join('');
-  c.innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Resources</p><h2>Files</h2></div>${isManagement()&&state.ownerEdit?`<div class="row gap-sm"><button class="chip-btn" data-file-upload="files">+ Files</button><button class="chip-btn" data-file-upload="folder">+ Folder</button></div>`:''}</div>
-    ${isManagement()&&state.ownerEdit?`<div class="file-upload-controls"><label>Upload category<select id="fileUploadCategory"><option value="setups">Setups</option><option value="liveries">Liveries</option><option value="docs">Docs</option><option value="media">Photo & Clip Links</option><option value="files">Files</option></select></label></div>`:''}
+  c.innerHTML=`<div class="page-heading"><div><p class="eyebrow">Resources</p><h2>Files</h2><p class="subtle">Uploads are handled in the Windows Hub.</p></div></div>
     <div class="sim-filters">${filterButtons}</div>
     <div class="card-list">${error?empty(error.message):(filtered.length?filtered.map(f=>{
       const parts=String(f.name||'File').split('/'),display=parts.pop(),folder=parts.join('/');
-      return `<div class="file-card file-card-v05"><div class="card-icon">↗</div><div class="file-main"><strong>${safe(display)}</strong>${folder?`<p class="file-folder">${safe(folder)}</p>`:''}<p>${safe(fileCategoryLabel(f.category))}${f.description?` · ${safe(f.description)}`:''}</p></div><div class="file-actions"><button class="small-action" data-file-download="${f.id}">Download</button>${isManagement()&&state.ownerEdit?`<button class="small-action danger" data-file-delete="${f.id}">Delete</button>`:''}</div></div>`
+      return `<div class="file-card file-card-v05"><div class="card-icon">↗</div><div class="file-main"><strong>${safe(display)}</strong>${folder?`<p class="file-folder">${safe(folder)}</p>`:''}<p>${safe(fileCategoryLabel(f.category))}${f.description?` · ${safe(f.description)}`:''}</p></div><div class="file-actions"><button class="small-action" data-file-download="${f.id}">Download</button>${isOwner()&&state.ownerEdit?`<button class="small-action danger" data-file-delete="${f.id}">Delete</button>`:''}</div></div>`
     }).join(''):empty('No files in this category'))}</div>`
 }
 async function downloadTeamFile(id){
@@ -365,30 +501,6 @@ async function downloadTeamFile(id){
   const {data,error}=await supabase.storage.from(FILE_BUCKET).createSignedUrl(f.storage_url,3600);
   if(error||!data?.signedUrl)return toast(error?.message||'Could not open file','error');
   window.open(data.signedUrl,'_blank','noopener')
-}
-function pickTeamFiles(folder=false){
-  if(!isManagement()||!state.ownerEdit)return;
-  const input=document.createElement('input');input.type='file';input.multiple=true;
-  if(folder)input.setAttribute('webkitdirectory','');
-  input.onchange=()=>uploadTeamFiles([...input.files]);
-  input.click()
-}
-async function uploadTeamFiles(files){
-  if(!files.length)return;
-  const category=$('#fileUploadCategory')?.value||'files',uid=state.session.user.id;
-  let done=0,failed=0;toast(`Uploading ${files.length} file${files.length===1?'':'s'}…`);
-  for(const file of files){
-    const relative=String(file.webkitRelativePath||file.name||'file').replace(/\\/g,'/').replace(/^\/+/,'').slice(0,500);
-    const objectPath=`${category}/${uid}/${Date.now()}-${crypto.randomUUID()}-${cleanObjectName(file.name)}`;
-    const up=await supabase.storage.from(FILE_BUCKET).upload(objectPath,file,{contentType:file.type||'application/octet-stream',upsert:false});
-    if(up.error){failed++;continue}
-    const row={name:relative||file.name,category,description:null,storage_url:objectPath,external_url:null,access_type:'team',uploaded_by:uid};
-    const ins=await supabase.from('team_files').insert(row);
-    if(ins.error){failed++;await supabase.storage.from(FILE_BUCKET).remove([objectPath]);continue}
-    done++
-  }
-  toast(`${done} uploaded${failed?` · ${failed} failed`:''}`,failed?'error':'info');
-  renderFiles($('#subpageContent'))
 }
 function confirmDeleteTeamFile(id){
   const f=(state.files||[]).find(x=>x.id===id);if(!f)return;
@@ -403,13 +515,23 @@ async function deleteTeamFile(id){
 }
 function renderSettings(c){
   const p=state.profile||{};
-  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Account</p><h2>Settings</h2></div><div class="hero-card"><div class="profile-row"><div class="profile-avatar">${p.avatar_url?`<img src="${safe(p.avatar_url)}" alt="" class="profile-avatar">`:initials(p.full_name||p.nickname)}</div><div><strong>${safe(p.full_name||p.nickname||state.session.user.email)}</strong><p>${safe(state.session.user.email)}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'LMU Driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iRacing Driver')?'<span class="tag">iRacing Driver</span>':''}</div><div class="divider"></div><div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.5 · same Supabase data as Desktop</p></div><button id="settingsInstall">Install</button></div>${isManagement()?`<div class="settings-row"><div><strong>Edit mode</strong><p>Announcements, events and file management</p></div><button id="settingsEdit">${state.ownerEdit?'Finish':'Edit'}</button></div>`:''}<div class="settings-row"><div><strong>Communication</strong><p>Chat and voice are handled in Discord</p></div></div><div class="settings-row"><div><strong>Session</strong><p>${safe(state.session.user.email)}</p></div><button id="logoutBtn" class="danger-btn">Log out</button></div></div>`;
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Account</p><h2>Settings</h2></div><div class="hero-card">
+    <div class="profile-row"><div class="profile-avatar">${avatarHtml(p)}</div><div><strong>${safe(p.full_name||p.nickname||state.session.user.email)}</strong><p>${safe(state.session.user.email)}</p></div></div>
+    <div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div>
+    <div class="divider"></div>
+    <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.6 · same Supabase data as Desktop</p></div><button id="settingsInstall">Install</button></div>
+    ${isOwner()?`<div class="settings-row"><div><strong>Owner Edit mode</strong><p>Rules, team members, events and announcements</p></div><button id="settingsEdit">${state.ownerEdit?'Finish':'Edit'}</button></div>`:''}
+    <div class="settings-row"><div><strong>Files</strong><p>Browse and download here · uploads stay in the Windows Hub</p></div></div>
+    <div class="settings-row"><div><strong>Communication</strong><p>Chat and voice are handled in Discord</p></div></div>
+    <div class="settings-row"><div><strong>Session</strong><p>${safe(state.session.user.email)}</p></div><button id="logoutBtn" class="danger-btn">Log out</button></div>
+  </div>`;
   $('#logoutBtn').onclick=()=>supabase.auth.signOut();$('#settingsInstall').onclick=installPwa;
   if($('#settingsEdit'))$('#settingsEdit').onclick=()=>{state.ownerEdit=!state.ownerEdit;applyEditMode();renderSettings(c)}
 }
 
+
 function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[]}
-function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&loadEvents()],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>state.currentPage==='subpage'&&state.subpageKind==='training'&&renderTraining($('#subpageContent'))],['profiles',()=>state.currentPage==='subpage'&&state.subpageKind==='team'&&renderTeam($('#subpageContent'))]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v05-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
+function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&loadEvents()],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>state.currentPage==='subpage'&&state.subpageKind==='training'&&renderTraining($('#subpageContent'))],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v06-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;$('#installButton').classList.remove('hidden')});
 $('#installButton').onclick=installPwa;

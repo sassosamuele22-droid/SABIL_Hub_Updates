@@ -92,9 +92,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .result-grid span{background:#111;border:1px solid #242424;border-radius:9px;padding:8px;text-align:center;font-size:10px}
 .result-grid b{display:block;font-size:13px;margin-top:2px}
 
-.file-upload-controls{margin-bottom:10px;border:1px solid var(--line);background:#080808;border-radius:13px;padding:10px}
-.file-upload-controls label{display:grid;gap:6px;font-size:10px;color:var(--muted);font-weight:800}
-.file-upload-controls select{padding:10px}
 .file-card-v05{align-items:center}
 .file-main{min-width:0;flex:1}
 .file-main strong{display:block;overflow:hidden;text-overflow:ellipsis}
@@ -108,3 +105,14 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   .file-actions{width:100%;padding-left:50px}
   .calendar-row{grid-template-columns:82px minmax(0,1fr)}
 }
+
+
+/* v0.6 owner editing, avatar fixes and shared rules */
+.avatar-btn{overflow:hidden}
+.top-avatar-image{width:100%;height:100%;display:block;object-fit:cover;border-radius:999px}
+.profile-avatar{overflow:hidden}
+.profile-avatar img.profile-avatar,.profile-avatar>img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
+.rule-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.prewrap{white-space:pre-wrap}
+.dialog-field textarea{min-height:118px}
+.member-card .profile-avatar{flex:0 0 auto}
