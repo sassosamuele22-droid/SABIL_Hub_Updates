@@ -1,28 +1,22 @@
-# SABIL GR Hub Mobile PWA v0.10
+# SABIL GR Hub Mobile PWA v0.12
 
-## v0.10 hotfix
-- Fixed startup/login regression from the first push build.
-- Push initialization is now non-blocking.
-- Fixed Home render runtime issue.
-- Login logo is white.
-- Cache namespace is `v010-hotfix1`.
+Mobile-first launch-candidate update.
 
-Adds real OS-level Web Push notifications.
+## New
+- Real white logo asset for login and dark header; no CSS-filter dependency.
+- Language selector in Settings: English, Deutsch, Italiano.
+- Language preference is saved locally and applied to the main navigation, login, Home, Events, Updates, More, Settings and key Event/Attendance/Line-up labels.
+- Theme selector in Settings: Dark, Light, System.
+- Theme is saved locally and the browser theme color/logo follow the selected appearance.
+- Existing Push notifications, Events, Line-ups, Stint Planner, Attendance details, Rules, Training, account settings, Team, Results and Files remain.
 
-## Push
-After a user taps Enable and grants permission, the installed PWA can receive SABIL GR notifications even while closed.
+## Deployment
+Replace the complete `mobile/` folder in the update repository and deploy. Fully close and reopen the installed PWA after deployment so cache `v011` becomes active.
 
-The backend is already configured in the connected Supabase project with:
-- push_subscriptions table with per-user RLS
-- automatic notifications -> push database trigger
-- deployed sabil-push Edge Function
-- VAPID Web Push keys
 
-Push is generated from the shared notifications table, so Desktop/backend notifications can reach Mobile too.
-
-Tapping a push can open the related Event, Updates, Results, or Home and marks the in-app notification as read.
-
-Settings now includes Enable/Disable Push Notifications. Home also offers an Enable card until configured.
-
-## Deploy
-Replace the full SABIL_Hub_Updates/mobile/ directory and commit to main. After Vercel redeploys, fully close/reopen the PWA so cache v010 loads. Each user must tap Enable once and approve notification permission.
+## v0.12
+- Added a dedicated **Stint Planner** tool under More.
+- It lists events, line-ups and planned stint/session items in one place.
+- Each line-up shows its current plan and has an **Open full planner** action.
+- The full editor remains directly inside the Event line-up, with add/edit/delete for stints, practice, qualifying and race start.
+- Events without a line-up link directly to line-up creation.

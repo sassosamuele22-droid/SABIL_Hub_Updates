@@ -31,6 +31,40 @@ function lmuTrackOptions(){const existing=(state.events||[]).filter(e=>simKey(e.
 const trackField=(label,id,value='')=>`<div class="dialog-field"><label for="${id}">${safe(label)}</label><input id="${id}" list="lmuTrackOptions" value="${safe(value)}"><datalist id="lmuTrackOptions">${lmuTrackOptions()}</datalist></div>`;
 
 const FILE_BUCKET='sabil-files';
+const LANGS=['en','de','it'];
+const I18N={
+  en:{offline:'Offline — cached shell active',email:'Email',password:'Password',sign_in:'Sign in',connected:'Connected',offline_short:'Offline',dashboard:'Dashboard',home:'Home',edit:'Edit',finish_edit:'Finish edit',latest_announcement:'Latest announcement',view_updates:'View updates',upcoming_events:'Upcoming events',view_all:'View all',notifications:'Notifications',mark_read:'Mark read',race_calendar:'Race calendar',events:'Events',calendar:'Calendar',team_information:'Team information',updates:'Updates',refresh:'Refresh',announcements:'Announcements',polls:'Polls',discord_title:'Chat & voice are handled in Discord',discord_body:'The mobile Hub stays focused on events, announcements, polls, team information and resources.',more:'More',team:'Team',drivers_profiles:'Drivers & profiles',results:'Results',race_results:'Race results',rules:'Rules',team_rules:'Team rules',files:'Files',team_files:'Team files',settings:'Settings',profile_app:'Profile & app',back:'Back',training:'Training',account:'Account',account_sub:'Your profile and app settings.',profile_picture:'Profile picture',change_photo:'Change photo',remove_photo:'Remove photo',use_initials:'Use initials instead',edit_profile:'Edit profile',edit_profile_sub:'Name, number, country, sim & bio',change_password:'Password',change_password_sub:'Change account password',app:'App',install:'Install',push_notifications:'Push notifications',enable:'Enable',disable:'Disable',owner_edit:'Owner Edit mode',owner_edit_sub:'Rules, team members, events and announcements',communication:'Communication',communication_sub:'Chat and voice are handled in Discord',session:'Session',signed_in:'Signed in',logout:'Log out',language:'Language',theme:'Theme',dark:'Dark',light:'Light',system:'System',appearance:'Appearance',language_sub:'Language used across the mobile Hub',theme_sub:'Choose dark, light or follow the phone setting',attendance:'Attendance',more_button:'More',confirmed:'Confirmed',unsure:'Unsure',cant_race:"Can't race",entries_lineups:'Entries / Line-ups',create_lineup:'+ Create line-up',stint_planner:'Stint & Session Planner',no_lineups:'No line-ups yet'},
+  de:{offline:'Offline — zwischengespeicherte App aktiv',email:'E-Mail',password:'Passwort',sign_in:'Anmelden',connected:'Verbunden',offline_short:'Offline',dashboard:'Übersicht',home:'Home',edit:'Bearbeiten',finish_edit:'Fertig',latest_announcement:'Neueste Mitteilung',view_updates:'Updates ansehen',upcoming_events:'Kommende Events',view_all:'Alle ansehen',notifications:'Mitteilungen',mark_read:'Als gelesen',race_calendar:'Rennkalender',events:'Events',calendar:'Kalender',team_information:'Team-Infos',updates:'Updates',refresh:'Aktualisieren',announcements:'Mitteilungen',polls:'Umfragen',discord_title:'Chat & Voice laufen über Discord',discord_body:'Der Mobile Hub bleibt auf Events, Mitteilungen, Umfragen, Team-Infos und Ressourcen fokussiert.',more:'Mehr',team:'Team',drivers_profiles:'Fahrer & Profile',results:'Resultate',race_results:'Rennergebnisse',rules:'Regeln',team_rules:'Teamregeln',files:'Dateien',team_files:'Teamdateien',settings:'Einstellungen',profile_app:'Profil & App',back:'Zurück',training:'Training',account:'Account',account_sub:'Dein Profil und deine App-Einstellungen.',profile_picture:'Profilbild',change_photo:'Foto ändern',remove_photo:'Foto entfernen',use_initials:'Stattdessen Initialen verwenden',edit_profile:'Profil bearbeiten',edit_profile_sub:'Name, Nummer, Land, Sim & Bio',change_password:'Passwort',change_password_sub:'Account-Passwort ändern',app:'App',install:'Installieren',push_notifications:'Push-Mitteilungen',enable:'Aktivieren',disable:'Deaktivieren',owner_edit:'Owner-Bearbeitungsmodus',owner_edit_sub:'Regeln, Teammitglieder, Events und Mitteilungen',communication:'Kommunikation',communication_sub:'Chat und Voice laufen über Discord',session:'Sitzung',signed_in:'Angemeldet',logout:'Abmelden',language:'Sprache',theme:'Design',dark:'Dunkel',light:'Hell',system:'System',appearance:'Darstellung',language_sub:'Sprache der mobilen Hub-App',theme_sub:'Dunkel, hell oder automatisch wie auf dem Handy',attendance:'Zusage',more_button:'Mehr',confirmed:'Zugesagt',unsure:'Unsicher',cant_race:'Absage',entries_lineups:'Aufstellungen / Line-ups',create_lineup:'+ Aufstellung erstellen',stint_planner:'Stint- & Session-Planer',no_lineups:'Noch keine Aufstellungen'},
+  it:{offline:'Offline — app in cache attiva',email:'E-mail',password:'Password',sign_in:'Accedi',connected:'Connesso',offline_short:'Offline',dashboard:'Dashboard',home:'Home',edit:'Modifica',finish_edit:'Fine',latest_announcement:'Ultimo annuncio',view_updates:'Vedi aggiornamenti',upcoming_events:'Prossimi eventi',view_all:'Vedi tutti',notifications:'Notifiche',mark_read:'Segna lette',race_calendar:'Calendario gare',events:'Eventi',calendar:'Calendario',team_information:'Informazioni team',updates:'Aggiornamenti',refresh:'Aggiorna',announcements:'Annunci',polls:'Sondaggi',discord_title:'Chat e voce sono su Discord',discord_body:'Il Mobile Hub resta focalizzato su eventi, annunci, sondaggi, informazioni del team e risorse.',more:'Altro',team:'Team',drivers_profiles:'Piloti e profili',results:'Risultati',race_results:'Risultati gare',rules:'Regole',team_rules:'Regole del team',files:'File',team_files:'File del team',settings:'Impostazioni',profile_app:'Profilo e app',back:'Indietro',training:'Training',account:'Account',account_sub:'Il tuo profilo e le impostazioni dell’app.',profile_picture:'Foto profilo',change_photo:'Cambia foto',remove_photo:'Rimuovi foto',use_initials:'Usa le iniziali',edit_profile:'Modifica profilo',edit_profile_sub:'Nome, numero, paese, sim e bio',change_password:'Password',change_password_sub:'Cambia password account',app:'App',install:'Installa',push_notifications:'Notifiche push',enable:'Attiva',disable:'Disattiva',owner_edit:'Modalità modifica Owner',owner_edit_sub:'Regole, membri, eventi e annunci',communication:'Comunicazione',communication_sub:'Chat e voce sono su Discord',session:'Sessione',signed_in:'Accesso effettuato',logout:'Esci',language:'Lingua',theme:'Tema',dark:'Scuro',light:'Chiaro',system:'Sistema',appearance:'Aspetto',language_sub:'Lingua usata nell’app mobile',theme_sub:'Scuro, chiaro o come il telefono',attendance:'Partecipazione',more_button:'Altro',confirmed:'Confermato',unsure:'Incerto',cant_race:'Non partecipa',entries_lineups:'Iscrizioni / Line-up',create_lineup:'+ Crea line-up',stint_planner:'Pianificatore stint e sessioni',no_lineups:'Nessun line-up'}
+};
+const userPrefs={
+  language:localStorage.getItem('sabil.language')||'en',
+  theme:localStorage.getItem('sabil.theme')||'dark'
+};
+const t=(key)=>I18N[userPrefs.language]?.[key]||I18N.en[key]||key;
+function applyLanguage(){
+  document.documentElement.lang=userPrefs.language;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.dataset.i18n;if(I18N[userPrefs.language]?.[k]||I18N.en[k])el.textContent=t(k)});
+  updateOnline();
+  if($('#editModeButton'))$('#editModeButton').textContent=state.ownerEdit?t('finish_edit'):t('edit');
+  if(state.currentPage==='home')loadHome();
+  if(state.currentPage==='events')loadEvents();
+  if(state.currentPage==='training')renderTraining($('#trainingPageContent'));
+  if(state.currentPage==='updates'){loadAnnouncements();loadPolls()}
+  if(state.currentPage==='subpage'&&state.subpageKind==='settings')renderSettings($('#subpageContent'));
+}
+function resolvedTheme(){return userPrefs.theme==='system'?(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):userPrefs.theme}
+function applyTheme(){
+  const resolved=resolvedTheme();
+  document.documentElement.dataset.theme=resolved;
+  document.documentElement.style.colorScheme=resolved;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content',resolved==='light'?'#f5f5f7':'#000000');
+  document.querySelectorAll('.login-logo,.top-logo').forEach(img=>img.src=resolved==='light'?'./logo.png':'./logo-white.png');
+}
+function setLanguage(v){if(!LANGS.includes(v))return;userPrefs.language=v;localStorage.setItem('sabil.language',v);applyLanguage()}
+function setTheme(v){if(!['dark','light','system'].includes(v))return;userPrefs.theme=v;localStorage.setItem('sabil.theme',v);applyTheme();if(state.currentPage==='subpage'&&state.subpageKind==='settings')renderSettings($('#subpageContent'))}
+matchMedia('(prefers-color-scheme: light)').addEventListener?.('change',()=>{if(userPrefs.theme==='system')applyTheme()});
+applyTheme();
 const PUSH_VAPID_PUBLIC_KEY='BBzM-h6_FhguGWIeGvXzJO3DuB6jqveF-_6GkHGLPsf6MQpnDd-J2ZIlZxiO1RZaL54lf_ZfzoAaIF2efAkkpW0';
 function pushSupported(){return 'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window}
 function urlBase64ToUint8Array(base64String){const padding='='.repeat((4-base64String.length%4)%4);const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(base64);return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
@@ -125,10 +159,11 @@ const fileCategoryLabel=v=>{
 const cleanObjectName=v=>String(v||'file').replace(/[^\w.\-]+/g,'_').slice(0,180)||'file';
 
 function toast(msg,type='info'){const e=document.createElement('div');e.className=`toast ${type==='error'?'error':''}`;e.textContent=msg;$('#toastHost').append(e);setTimeout(()=>e.remove(),3600)}
-function updateOnline(){ $('#offlineBanner').classList.toggle('hidden',navigator.onLine); $('#connectionLabel').textContent=navigator.onLine?'Connected':'Offline'; }
+function updateOnline(){ $('#offlineBanner').classList.toggle('hidden',navigator.onLine); $('#connectionLabel').textContent=navigator.onLine?t('connected'):t('offline_short'); }
 window.addEventListener('online',updateOnline); window.addEventListener('offline',updateOnline);
 window.addEventListener('error',e=>toast(e.message,'error'));
 window.addEventListener('unhandledrejection',e=>toast(e.reason?.message||String(e.reason||'Unexpected error'),'error'));
+applyLanguage();
 
 function openDialog(title,body,actions=[]){
   $('#dialogTitle').textContent=title; $('#dialogBody').innerHTML=body;
@@ -171,7 +206,7 @@ async function loadProfiles(){
   state.profiles=await Promise.all((data||[]).map(hydrateAvatar))
 }
 
-function applyEditMode(){if(!isOwner())state.ownerEdit=false;document.body.classList.toggle('owner-editing',isOwner()&&state.ownerEdit);$('#editModeButton').textContent=state.ownerEdit?'Finish edit':'Edit'}
+function applyEditMode(){if(!isOwner())state.ownerEdit=false;document.body.classList.toggle('owner-editing',isOwner()&&state.ownerEdit);$('#editModeButton').textContent=state.ownerEdit?t('finish_edit'):t('edit')}
 $('#editModeButton').onclick=()=>{if(!isOwner())return;state.ownerEdit=!state.ownerEdit;applyEditMode();toast(state.ownerEdit?'Edit mode on':'Edit mode off')};
 
 function nav(page){state.currentPage=page;if(page!=='subpage')state.subpageKind=null;$$('.page').forEach(p=>p.classList.add('hidden'));$(`.page[data-page="${page}"]`)?.classList.remove('hidden');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));window.scrollTo(0,0);if(page==='home')loadHome();if(page==='events')loadEvents();if(page==='training')renderTraining($('#trainingPageContent'));if(page==='updates'){loadAnnouncements();loadPolls()}}
@@ -298,7 +333,7 @@ function renderEventDetail({event,entries,attendance}){
     ${currentStatus==='finished'?`<button class="chip-btn" data-event-status="open" data-event="${id}">Reopen</button>`:`<button class="chip-btn success" data-event-status="finished" data-event="${id}">Mark finished</button>`}
     <button class="chip-btn danger" data-event-delete="${id}">Delete</button>
   </div>`:'';
-  const lineupButton=currentStatus==='open'?`<button class="chip-btn primary lineup-create-btn" data-lineup-new="${id}">+ Create line-up</button>`:'';
+  const lineupButton=currentStatus==='open'?`<button class="chip-btn primary lineup-create-btn" data-lineup-new="${id}">${t('create_lineup')}</button>`:'';
 
   $('#subpageContent').innerHTML=`
     <div class="page-heading row-between">
@@ -313,12 +348,12 @@ function renderEventDetail({event,entries,attendance}){
       ${event.notes?`<p class="event-notes">${safe(event.notes)}</p>`:''}
     </div>
 
-    <div class="section-title row-between"><h3>Attendance</h3><button class="link-btn" data-attendance-more="${id}">More</button></div>
+    <div class="section-title row-between"><h3>${t('attendance')}</h3><button class="link-btn" data-attendance-more="${id}">${t('more_button')}</button></div>
     <div class="attendance-grid">
-      ${[['in',`Confirmed (${counts.in})`],['unsure',`Unsure (${counts.unsure})`],['out',`Can't race (${counts.out})`]].map(([v,l])=>`<button class="attendance-btn ${my===v?'active':''}" data-attendance="${v}" data-event="${id}">${l}</button>`).join('')}
+      ${[['in',`${t('confirmed')} (${counts.in})`],['unsure',`${t('unsure')} (${counts.unsure})`],['out',`${t('cant_race')} (${counts.out})`]].map(([v,l])=>`<button class="attendance-btn ${my===v?'active':''}" data-attendance="${v}" data-event="${id}">${l}</button>`).join('')}
     </div>
 
-    <div class="section-title row-between"><h3>Entries / Line-ups</h3><span class="subtle">${entries.length}</span></div>
+    <div class="section-title row-between"><h3>${t('entries_lineups')}</h3><span class="subtle">${entries.length}</span></div>
     <div class="card-list">${entries.length?entries.map(en=>{
       const plannerAllowed=canManagePlanner(en),lineupAllowed=canManageLineup(en);
       const sched=en.schedule||[];
@@ -343,7 +378,7 @@ function renderEventDetail({event,entries,attendance}){
         ${lineupAllowed?`<div class="lineup-actions"><button class="small-action" data-lineup-edit="${en.id}">Edit</button><button class="small-action danger" data-lineup-delete="${en.id}">Delete</button></div>`:''}
 
         <div class="planner-card">
-          <div class="planner-title"><strong>Stint & Session Planner</strong><span>${sched.length}</span></div>
+          <div class="planner-title"><div><small class="planner-eyebrow">RACE PLAN</small><strong>${t('stint_planner')}</strong></div><span>${sched.length}</span></div>
           <div class="planner-list">
             ${sched.length?sched.map(x=>`<div class="planner-item">
               <div class="planner-main"><strong>${safe(x.title||scheduleLabel(x))}</strong><p>${fmtDate(x.session_date)} · ${fmtTime(x.start_time)}${x.duration_minutes?` · ${x.duration_minutes} min`:''}</p><p>${x.driver_id?`Driver: ${safe(memberLabel(x.driver_id))}`:'Whole team'}${x.duration_minutes?` · Ends ${addMinutesLabel(x.session_date,x.start_time,x.duration_minutes)}`:''}</p>${x.notes?`<p class="planner-notes">${safe(x.notes)}</p>`:''}</div>
@@ -353,7 +388,7 @@ function renderEventDetail({event,entries,attendance}){
           ${plannerAllowed?`<button class="chip-btn planner-add" data-stint-new="${en.id}">+ Add session / stint</button>`:''}
         </div>
       </div>`
-    }).join(''):empty('No line-ups yet')}</div>`;
+    }).join(''):empty(t('no_lineups'))}</div>`;
 }
 
 function openAttendanceDetails(){
@@ -671,7 +706,44 @@ $('#newPollButton').onclick=()=>openDialog('Create poll',
   }}]
 );
 
-async function showSubpage(kind){nav('subpage');state.subpageKind=kind;const c=$('#subpageContent');c.innerHTML=empty('Loading…');if(kind==='team')return renderTeam(c);if(kind==='training')return renderTraining(c);if(kind==='results')return renderResults(c);if(kind==='rules')return renderRules(c);if(kind==='files')return renderFiles(c);if(kind==='settings')return renderSettings(c)}
+async function renderStintPlannerTool(c){
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Race Operations</p><h2>${t('stint_planner')}</h2><p class="subtle">Plan and manage stints for every event line-up.</p></div>${empty('Loading line-ups…')}`;
+  const {data:events,error:evErr}=await supabase.from('events').select('*').order('event_date',{ascending:true}).limit(100);
+  if(evErr){c.innerHTML+=empty(evErr.message);return}
+  const ids=(events||[]).map(e=>e.id);
+  if(!ids.length){c.innerHTML+=empty('No events available');return}
+  const {data:entries,error:enErr}=await supabase.from('event_entries').select('*').in('event_id',ids).order('race_date',{ascending:true}).order('race_time',{ascending:true});
+  if(enErr){c.innerHTML+=empty(enErr.message);return}
+  const entryIds=(entries||[]).map(e=>e.id);
+  let schedules=[];
+  if(entryIds.length){
+    const {data,error}=await supabase.from('entry_schedule_items').select('*').in('entry_id',entryIds).order('session_date').order('start_time').order('sort_order');
+    if(!error)schedules=data||[]
+  }
+  const relevant=(events||[]).filter(ev=>{
+    const end=ev.event_end_date||ev.event_date||'9999-12-31';
+    return end>=today() || (entries||[]).some(en=>en.event_id===ev.id)
+  });
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Race Operations</p><h2>${t('stint_planner')}</h2><p class="subtle">Plan and manage stints for every event line-up.</p></div>
+    <div class="stint-tool-list">${relevant.length?relevant.map(ev=>{
+      const evEntries=(entries||[]).filter(en=>en.event_id===ev.id);
+      return `<section class="stint-tool-event">
+        <div class="stint-tool-event-head"><div><strong>${safe(ev.name)}</strong><p>${eventDateLabel(ev)} · ${safe(ev.track||'—')}</p></div><button class="small-action" data-stint-event-open="${ev.id}">Open event</button></div>
+        <div class="stint-tool-entries">${evEntries.length?evEntries.map(en=>{
+          const items=schedules.filter(x=>x.entry_id===en.id);
+          return `<div class="stint-tool-entry">
+            <div class="row-between"><div><strong>${safe(en.entry_name||'SABIL Entry')}${en.car_number?` · #${safe(en.car_number)}`:''}</strong><p>${safe(en.vehicle||'—')}</p></div><span class="status-pill">${safe(en.status||'draft')}</span></div>
+            <div class="stint-tool-count"><strong>${items.length}</strong><span>${items.length===1?'planned item':'planned items'}</span></div>
+            <div class="stint-tool-preview">${items.length?items.slice(0,4).map(x=>`<div><span>${fmtTime(x.start_time)}</span><strong>${safe(x.title||scheduleLabel(x))}</strong><small>${x.driver_id?safe(memberLabel(x.driver_id)):'Whole team'}</small></div>`).join(''):'<p class="subtle">No stints planned yet.</p>'}</div>
+            <button class="chip-btn primary stint-tool-manage" data-stint-event-open="${ev.id}">Open full planner</button>
+          </div>`
+        }).join(''):`<div class="stint-tool-empty"><p>No line-up yet.</p><button class="chip-btn" data-stint-event-open="${ev.id}">${t('create_lineup')}</button></div>`}</div>
+      </section>`
+    }).join(''):empty('No upcoming events')}</div>`;
+  c.querySelectorAll('[data-stint-event-open]').forEach(b=>b.onclick=()=>showEventDetail(b.dataset.stintEventOpen))
+}
+
+async function showSubpage(kind){nav('subpage');state.subpageKind=kind;const c=$('#subpageContent');c.innerHTML=empty('Loading…');if(kind==='team')return renderTeam(c);if(kind==='training')return renderTraining(c);if(kind==='results')return renderResults(c);if(kind==='stints')return renderStintPlannerTool(c);if(kind==='rules')return renderRules(c);if(kind==='files')return renderFiles(c);if(kind==='settings')return renderSettings(c)}
 async function renderTeam(c){
   await loadProfiles();
   c.innerHTML=`<div class="page-heading"><p class="eyebrow">Members</p><h2>Team</h2></div><div class="card-list">${state.profiles.map(p=>`<button class="member-card" data-member-id="${p.id}"><div class="profile-avatar">${avatarHtml(p)}</div><div><strong>${safe(p.full_name||p.nickname||'Driver')} ${p.race_number?`#${safe(p.race_number)}`:''}</strong><p>${safe(effectiveRole(p)||'driver')} · ${safe(p.country||'')}</p><div class="profile-tags">${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div></div></button>`).join('')}</div>`
@@ -854,28 +926,38 @@ async function deleteTeamFile(id){
 }
 function renderSettings(c){
   const p=state.profile||{};
-  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Account</p><h2>Settings</h2><p class="subtle">Your profile and app settings.</p></div>
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">${t('account')}</p><h2>${t('settings')}</h2><p class="subtle">${t('account_sub')}</p></div>
     <div class="settings-profile-card">
       <div class="settings-profile-top"><div class="settings-avatar-large">${avatarHtml(p,'settings-avatar-img')}</div><div><strong>${safe(p.full_name||p.nickname||state.session.user.email)}</strong><p>${safe(state.session.user.email)}</p><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div></div></div>
       <div class="settings-action-grid">
-        <button id="changeAvatarBtn" class="settings-action"><strong>Profile picture</strong><span>Change photo</span></button>
-        ${p.avatar_url?`<button id="removeAvatarBtn" class="settings-action danger-lite"><strong>Remove photo</strong><span>Use initials instead</span></button>`:''}
-        <button id="editMyProfileBtn" class="settings-action"><strong>Edit profile</strong><span>Name, number, country, sim & bio</span></button>
-        <button id="changePasswordBtn" class="settings-action"><strong>Password</strong><span>Change account password</span></button>
+        <button id="changeAvatarBtn" class="settings-action"><strong>${t('profile_picture')}</strong><span>${t('change_photo')}</span></button>
+        ${p.avatar_url?`<button id="removeAvatarBtn" class="settings-action danger-lite"><strong>${t('remove_photo')}</strong><span>${t('use_initials')}</span></button>`:''}
+        <button id="editMyProfileBtn" class="settings-action"><strong>${t('edit_profile')}</strong><span>${t('edit_profile_sub')}</span></button>
+        <button id="changePasswordBtn" class="settings-action"><strong>${t('change_password')}</strong><span>${t('change_password_sub')}</span></button>
       </div>
     </div>
-    <div class="settings-section"><h3>App</h3>
-      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.10 · same live data as Desktop</p></div><button id="settingsInstall">Install</button></div>
-      <div class="settings-row"><div><strong>Push notifications</strong><p>${safe(pushStatusText())}</p></div>${state.pushSubscription?`<button id="settingsPushToggle" class="danger-btn">Disable</button>`:`<button id="settingsPushToggle">Enable</button>`}</div>
-      ${isOwner()?`<div class="settings-row"><div><strong>Owner Edit mode</strong><p>Rules, team members, events and announcements</p></div><button id="settingsEdit">${state.ownerEdit?'Finish':'Edit'}</button></div>`:''}
-      <div class="settings-row"><div><strong>Files</strong><p>Browse/download here · uploads stay in Windows Hub</p></div></div>
-      <div class="settings-row"><div><strong>Communication</strong><p>Chat and voice are handled in Discord</p></div></div>
+    <div class="settings-section"><h3>${t('appearance')}</h3>
+      <div class="settings-row"><div><strong>${t('language')}</strong><p>${t('language_sub')}</p></div><select id="settingsLanguage" class="settings-select"><option value="en" ${userPrefs.language==='en'?'selected':''}>English</option><option value="de" ${userPrefs.language==='de'?'selected':''}>Deutsch</option><option value="it" ${userPrefs.language==='it'?'selected':''}>Italiano</option></select></div>
+      <div class="settings-row"><div><strong>${t('theme')}</strong><p>${t('theme_sub')}</p></div><select id="settingsTheme" class="settings-select"><option value="dark" ${userPrefs.theme==='dark'?'selected':''}>${t('dark')}</option><option value="light" ${userPrefs.theme==='light'?'selected':''}>${t('light')}</option><option value="system" ${userPrefs.theme==='system'?'selected':''}>${t('system')}</option></select></div>
     </div>
-    <div class="settings-section"><h3>Session</h3><div class="settings-row"><div><strong>${safe(state.session.user.email)}</strong><p>Signed in</p></div><button id="logoutBtn" class="danger-btn">Log out</button></div></div>`;
-  $('#logoutBtn').onclick=()=>supabase.auth.signOut();$('#settingsInstall').onclick=installPwa;if($('#settingsPushToggle'))$('#settingsPushToggle').onclick=()=>state.pushSubscription?disablePushNotifications():enablePushNotifications();
+    <div class="settings-section"><h3>${t('app')}</h3>
+      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.12 · same live data as Desktop</p></div><button id="settingsInstall">${t('install')}</button></div>
+      <div class="settings-row"><div><strong>${t('push_notifications')}</strong><p>${safe(pushStatusText())}</p></div>${state.pushSubscription?`<button id="settingsPushToggle" class="danger-btn">${t('disable')}</button>`:`<button id="settingsPushToggle">${t('enable')}</button>`}</div>
+      ${isOwner()?`<div class="settings-row"><div><strong>${t('owner_edit')}</strong><p>${t('owner_edit_sub')}</p></div><button id="settingsEdit">${state.ownerEdit?t('finish_edit'):t('edit')}</button></div>`:''}
+      <div class="settings-row"><div><strong>${t('files')}</strong><p>Browse/download here · uploads stay in Windows Hub</p></div></div>
+      <div class="settings-row"><div><strong>${t('communication')}</strong><p>${t('communication_sub')}</p></div></div>
+    </div>
+    <div class="settings-section"><h3>${t('session')}</h3>
+      <div class="settings-row"><div><strong>${safe(state.session.user.email)}</strong><p>${t('signed_in')}</p></div><button id="logoutBtn" class="danger-btn">${t('logout')}</button></div>
+    </div>`;
+  $('#logoutBtn').onclick=()=>supabase.auth.signOut();$('#settingsInstall').onclick=installPwa;
+  if($('#settingsPushToggle'))$('#settingsPushToggle').onclick=()=>state.pushSubscription?disablePushNotifications():enablePushNotifications();
   if($('#settingsEdit'))$('#settingsEdit').onclick=()=>{state.ownerEdit=!state.ownerEdit;applyEditMode();renderSettings(c)};
+  $('#settingsLanguage').onchange=e=>setLanguage(e.target.value);
+  $('#settingsTheme').onchange=e=>setTheme(e.target.value);
   $('#editMyProfileBtn').onclick=openMyProfileEditor;$('#changeAvatarBtn').onclick=pickProfilePicture;if($('#removeAvatarBtn'))$('#removeAvatarBtn').onclick=removeProfilePicture;$('#changePasswordBtn').onclick=openPasswordEditor
 }
+
 function openMyProfileEditor(){const p=state.profile||{};openDialog('Edit profile',`<div class="dialog-grid">${field('Full name','myFullName','text',p.full_name||'')}${field('Nickname','myNickname','text',p.nickname||'')}${field('Race number','myRaceNumber','text',p.race_number||'')}${field('Country','myCountry','text',p.country||'')}${field('Preferred sim','myPreferredSim','text',p.preferred_sim||'')}${field('Preferred class','myPreferredClass','text',p.preferred_class||'')}${field('Racing goal','myGoal','text',p.racing_goal||'')}<div class="dialog-field full"><label>Bio</label><textarea id="myBio">${safe(p.bio||'')}</textarea></div></div>`,[{label:'Save profile',primary:true,run:async()=>{const patch={full_name:$('#myFullName').value.trim()||null,nickname:$('#myNickname').value.trim()||null,race_number:$('#myRaceNumber').value.trim()||null,country:$('#myCountry').value.trim()||null,preferred_sim:$('#myPreferredSim').value.trim()||null,preferred_class:$('#myPreferredClass').value.trim()||null,racing_goal:$('#myGoal').value.trim()||null,bio:$('#myBio').value.trim()||null};const {error}=await supabase.from('profiles').update(patch).eq('id',state.session.user.id);if(error){toast(error.message,'error');return false}await loadProfile();await loadProfiles();renderSettings($('#subpageContent'));renderHomeProfile();toast('Profile updated');return true}}])}
 function pickProfilePicture(){const input=document.createElement('input');input.type='file';input.accept='image/jpeg,image/png,image/webp';input.onchange=async()=>{const file=input.files?.[0];if(!file)return;if(file.size>5*1024*1024)return toast('Profile picture must be under 5 MB','error');const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';const path=`avatars/${state.session.user.id}/${Date.now()}.${ext}`;toast('Uploading profile picture…');const {error:upError}=await supabase.storage.from(FILE_BUCKET).upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});if(upError)return toast(upError.message,'error');const old=state.profile?.avatar_url;const {error}=await supabase.from('profiles').update({avatar_url:path}).eq('id',state.session.user.id);if(error){await supabase.storage.from(FILE_BUCKET).remove([path]);return toast(error.message,'error')}if(old&&!/^https?:/i.test(old)){try{await supabase.storage.from(FILE_BUCKET).remove([old])}catch{}}state.avatarCache.clear();await loadProfile();await loadProfiles();renderSettings($('#subpageContent'));renderHomeProfile();toast('Profile picture updated')};input.click()}
 function removeProfilePicture(){const old=state.profile?.avatar_url;openDialog('Remove profile picture','<p>Use your initials instead of the current profile picture?</p>',[{label:'Remove',danger:true,run:async()=>{const {error}=await supabase.from('profiles').update({avatar_url:null}).eq('id',state.session.user.id);if(error){toast(error.message,'error');return false}if(old&&!/^https?:/i.test(old)){try{await supabase.storage.from(FILE_BUCKET).remove([old])}catch{}}state.avatarCache.clear();await loadProfile();await loadProfiles();renderSettings($('#subpageContent'));renderHomeProfile();toast('Profile picture removed');return true}}])}
@@ -883,7 +965,7 @@ function openPasswordEditor(){openDialog('Change password',`<div class="dialog-g
 
 
 function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[]}
-function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entries',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entry_drivers',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['entry_schedule_items',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>{if(state.currentPage==='training')renderTraining($('#trainingPageContent'));if(state.currentPage==='subpage'&&state.subpageKind==='training')renderTraining($('#subpageContent'))}],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v010-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
+function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entries',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entry_drivers',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['entry_schedule_items',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>{if(state.currentPage==='training')renderTraining($('#trainingPageContent'));if(state.currentPage==='subpage'&&state.subpageKind==='training')renderTraining($('#subpageContent'))}],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v012-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;$('#installButton').classList.remove('hidden')});
 $('#installButton').onclick=installPwa;

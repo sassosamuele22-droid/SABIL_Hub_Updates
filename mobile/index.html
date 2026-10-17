@@ -14,15 +14,15 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="offlineBanner" class="offline-banner hidden">Offline — cached shell active</div>
+  <div id="offlineBanner" class="offline-banner hidden" data-i18n="offline">Offline — cached shell active</div>
 
   <main id="loginView" class="login-shell">
     <section class="login-card">
-      <img class="login-logo" src="./logo.png" alt="SABIL GR Simracing Team" />
+      <img class="login-logo" src="./logo-white.png" alt="SABIL GR Simracing Team" />
       <form id="loginForm" class="stack gap-lg">
-        <label class="field"><span>Email</span><input id="email" type="email" autocomplete="email" placeholder="name@example.com" required /></label>
-        <label class="field"><span>Password</span><div class="password-wrap"><input id="password" type="password" autocomplete="current-password" placeholder="••••••••" minlength="8" required /><button id="togglePassword" class="icon-btn" type="button" aria-label="Show password">◉</button></div></label>
-        <button class="primary-btn" type="submit">Sign in</button>
+        <label class="field"><span data-i18n="email">Email</span><input id="email" type="email" autocomplete="email" placeholder="name@example.com" required /></label>
+        <label class="field"><span data-i18n="password">Password</span><div class="password-wrap"><input id="password" type="password" autocomplete="current-password" placeholder="••••••••" minlength="8" required /><button id="togglePassword" class="icon-btn" type="button" aria-label="Show password">◉</button></div></label>
+        <button class="primary-btn" type="submit" data-i18n="sign_in">Sign in</button>
         <p id="loginError" class="error-text hidden"></p>
       </form>
     </section>
@@ -30,9 +30,9 @@
 
   <div id="appView" class="app-shell hidden">
     <header class="topbar">
-      <img class="top-logo" src="./logo.png" alt="SABIL GR" />
+      <img class="top-logo" src="./logo-white.png" alt="SABIL GR" />
       <div class="top-actions">
-        <span id="connectionLabel" class="connection-dot">Connected</span>
+        <span id="connectionLabel" class="connection-dot" data-i18n="connected">Connected</span>
         <button id="profileButton" class="avatar-btn" aria-label="Profile"><span id="avatarInitials">?</span></button>
       </div>
     </header>
@@ -42,18 +42,18 @@
     <section class="content">
       <div class="page" data-page="home">
         <div class="page-heading row-between">
-          <div><p class="eyebrow">Dashboard</p><h2>Home</h2></div>
+          <div><p class="eyebrow" data-i18n="dashboard">Dashboard</p><h2 data-i18n="home">Home</h2></div>
           <div class="row gap-sm"><button id="editModeButton" class="chip-btn owner-only hidden">Edit</button><button id="installButton" class="chip-btn hidden">Install</button></div>
         </div>
         <div id="homeProfile" class="hero-card loading-card">Loading profile…</div>
         <div id="homePushPrompt" class="push-prompt hidden"></div>
-        <div class="section-title"><h3>Latest announcement</h3><button class="link-btn" data-nav="updates">View updates</button></div><div id="homeLatestAnnouncement"></div>
-        <div class="section-title"><h3>Upcoming events</h3><button class="link-btn" data-nav="events">View all</button></div><div id="homeEvents" class="card-list"></div>
-        <div class="section-title"><h3>Notifications</h3><button id="markNotificationsRead" class="link-btn">Mark read</button></div><div id="homeNotifications" class="card-list"></div>
+        <div class="section-title"><h3 data-i18n="latest_announcement">Latest announcement</h3><button class="link-btn" data-nav="updates" data-i18n="view_updates">View updates</button></div><div id="homeLatestAnnouncement"></div>
+        <div class="section-title"><h3 data-i18n="upcoming_events">Upcoming events</h3><button class="link-btn" data-nav="events" data-i18n="view_all">View all</button></div><div id="homeEvents" class="card-list"></div>
+        <div class="section-title"><h3 data-i18n="notifications">Notifications</h3><button id="markNotificationsRead" class="link-btn" data-i18n="mark_read">Mark read</button></div><div id="homeNotifications" class="card-list"></div>
       </div>
 
       <div class="page hidden" data-page="events">
-        <div class="page-heading row-between"><div><p class="eyebrow">Race calendar</p><h2>Events</h2></div><div class="row gap-sm"><button id="calendarButton" class="chip-btn">▦ Calendar</button><button id="newEventButton" class="chip-btn edit-only hidden">+ Event</button></div></div>
+        <div class="page-heading row-between"><div><p class="eyebrow" data-i18n="race_calendar">Race calendar</p><h2 data-i18n="events">Events</h2></div><div class="row gap-sm"><button id="calendarButton" class="chip-btn">▦ <span data-i18n="calendar">Calendar</span></button><button id="newEventButton" class="chip-btn edit-only hidden">+ Event</button></div></div>
         <div id="eventFilters" class="sim-filters"></div>
         <div id="eventsCalendar" class="events-calendar-list hidden"></div>
         <div id="eventsList" class="card-list"></div>
@@ -61,19 +61,19 @@
 
       <div class="page hidden" data-page="updates">
         <div class="page-heading row-between">
-          <div><p class="eyebrow">Team information</p><h2>Updates</h2></div>
-          <button id="refreshUpdates" class="chip-btn">Refresh</button>
+          <div><p class="eyebrow" data-i18n="team_information">Team information</p><h2 data-i18n="updates">Updates</h2></div>
+          <button id="refreshUpdates" class="chip-btn" data-i18n="refresh">Refresh</button>
         </div>
 
-        <div class="section-title"><h3>Announcements</h3><button id="newAnnouncement" class="chip-btn edit-only hidden">+ Announcement</button></div>
+        <div class="section-title"><h3 data-i18n="announcements">Announcements</h3><button id="newAnnouncement" class="chip-btn edit-only hidden">+ Announcement</button></div>
         <div id="announcementsList" class="card-list"></div>
 
-        <div class="section-title"><h3>Polls</h3><button id="newPollButton" class="chip-btn">+ Poll</button></div>
+        <div class="section-title"><h3 data-i18n="polls">Polls</h3><button id="newPollButton" class="chip-btn">+ Poll</button></div>
         <div id="pollsList" class="card-list"></div>
 
         <div class="notice-card discord-note">
-          <strong>Chat & voice are handled in Discord</strong>
-          <p>The mobile Hub stays focused on events, announcements, polls, team information and resources.</p>
+          <strong data-i18n="discord_title">Chat & voice are handled in Discord</strong>
+          <p data-i18n="discord_body">The mobile Hub stays focused on events, announcements, polls, team information and resources.</p>
         </div>
       </div>
 
@@ -82,25 +82,26 @@
       </div>
 
       <div class="page hidden" data-page="more">
-        <div class="page-heading"><p class="eyebrow">SABIL GR</p><h2>More</h2></div>
+        <div class="page-heading"><p class="eyebrow">SABIL GR</p><h2 data-i18n="more">More</h2></div>
         <div class="menu-grid">
-          <button class="menu-card" data-subpage="team"><span>👥</span><strong>Team</strong><small>Drivers & profiles</small></button>
-          <button class="menu-card" data-subpage="results"><span>🏆</span><strong>Results</strong><small>Race results</small></button>
-          <button class="menu-card" data-subpage="rules"><span>📖</span><strong>Rules</strong><small>Team rules</small></button>
-          <button class="menu-card" data-subpage="files"><span>📁</span><strong>Files</strong><small>Team files</small></button>
-          <button class="menu-card" data-subpage="settings"><span>⚙</span><strong>Settings</strong><small>Profile & app</small></button>
+          <button class="menu-card" data-subpage="team"><span>👥</span><strong data-i18n="team">Team</strong><small data-i18n="drivers_profiles">Drivers & profiles</small></button>
+          <button class="menu-card" data-subpage="results"><span>🏆</span><strong data-i18n="results">Results</strong><small data-i18n="race_results">Race results</small></button>
+          <button class="menu-card" data-subpage="stints"><span>⏱</span><strong data-i18n="stint_planner">Stint Planner</strong><small>Plan race stints & sessions</small></button>
+          <button class="menu-card" data-subpage="rules"><span>📖</span><strong data-i18n="rules">Rules</strong><small data-i18n="team_rules">Team rules</small></button>
+          <button class="menu-card" data-subpage="files"><span>📁</span><strong data-i18n="files">Files</strong><small data-i18n="team_files">Team files</small></button>
+          <button class="menu-card" data-subpage="settings"><span>⚙</span><strong data-i18n="settings">Settings</strong><small data-i18n="profile_app">Profile & app</small></button>
         </div>
       </div>
 
-      <div class="page hidden" data-page="subpage"><button id="backMore" class="back-btn">← Back</button><div id="subpageContent"></div></div>
+      <div class="page hidden" data-page="subpage"><button id="backMore" class="back-btn">← <span data-i18n="back">Back</span></button><div id="subpageContent"></div></div>
     </section>
 
     <nav class="bottom-nav" aria-label="Main navigation">
-      <button class="nav-item active" data-nav="home"><span>⌂</span><small>Home</small></button>
-      <button class="nav-item" data-nav="events"><span>▣</span><small>Events</small></button>
-      <button class="nav-item" data-nav="training"><span>⌁</span><small>Training</small></button>
-      <button class="nav-item" data-nav="updates"><span>◆</span><small>Updates</small></button>
-      <button class="nav-item" data-nav="more"><span>•••</span><small>More</small></button>
+      <button class="nav-item active" data-nav="home"><span>⌂</span><small data-i18n="home">Home</small></button>
+      <button class="nav-item" data-nav="events"><span>▣</span><small data-i18n="events">Events</small></button>
+      <button class="nav-item" data-nav="training"><span>⌁</span><small data-i18n="training">Training</small></button>
+      <button class="nav-item" data-nav="updates"><span>◆</span><small data-i18n="updates">Updates</small></button>
+      <button class="nav-item" data-nav="more"><span>•••</span><small data-i18n="more">More</small></button>
     </nav>
   </div>
 
