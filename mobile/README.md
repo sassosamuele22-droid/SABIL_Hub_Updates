@@ -1,4 +1,4 @@
-# SABIL GR Hub Mobile PWA v0.12
+# SABIL GR Hub Mobile PWA v0.13
 
 Mobile-first launch-candidate update.
 
@@ -20,3 +20,10 @@ Replace the complete `mobile/` folder in the update repository and deploy. Fully
 - Each line-up shows its current plan and has an **Open full planner** action.
 - The full editor remains directly inside the Event line-up, with add/edit/delete for stints, practice, qualifying and race start.
 - Events without a line-up link directly to line-up creation.
+
+
+## v0.13 hotfix
+- Fixed transient null-session error.
+- Fixed compact and working line-up status selector.
+- Only drivers assigned to a line-up can edit its Stint Planner.
+- Admin/Owner can still view other line-ups and plans, but cannot edit their stints unless assigned.

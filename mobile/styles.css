@@ -264,3 +264,10 @@ html[data-theme="light"] .push-prompt p,html[data-theme="light"] .subtle,html[da
 .stint-tool-preview span{font-size:10px;font-weight:900}.stint-tool-preview strong{font-size:11px}.stint-tool-preview small{font-size:9px;color:var(--muted)}
 .stint-tool-manage{width:100%;justify-content:center;margin-top:10px}.stint-tool-empty{padding:14px}.planner-eyebrow{display:block;color:#777;font-size:8px;font-weight:900;letter-spacing:.1em;margin-bottom:2px}
 @media(max-width:390px){.stint-tool-preview>div{grid-template-columns:42px 1fr}.stint-tool-preview small{grid-column:2}}
+
+
+/* v0.13 lineup status + stint permission hotfix */
+.lineup-status-select{width:auto !important;min-width:94px !important;max-width:122px !important;height:40px !important;flex:0 0 auto !important;align-self:flex-start !important;padding:7px 28px 7px 12px !important;border-radius:999px !important;font-size:11px !important;line-height:1 !important}
+.lineup-status-select:disabled{opacity:.55}
+.event-top{align-items:flex-start}
+.planner-readonly{display:block;margin-top:4px;color:var(--muted);font-size:9px;font-weight:500;letter-spacing:0}
