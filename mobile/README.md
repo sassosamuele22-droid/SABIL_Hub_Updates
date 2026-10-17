@@ -1,36 +1,17 @@
-# SABIL GR Hub Mobile PWA v0.8
+# SABIL GR Hub Mobile PWA v0.9
 
-This is the launch-candidate mobile build focused on the daily-use workflow.
+Mobile-first usability release.
 
-## v0.8
-- Training moved from More into its own bottom navigation tab.
-- Event line-ups can be created directly inside every open Event.
-- The Line-up create button is more visible.
-- Line-up status now works directly in the Event view:
-  - draft
-  - ready
-  - confirmed
-- Status can be changed by the line-up creator or management.
-- Status changes notify assigned drivers.
-- More line-up information is visible:
-  - race date
-  - start time
-  - car
-  - car number
-  - iRacing team name / ID when present
-  - assigned drivers
-- Stint & Session Planner is always visible under every line-up instead of being hidden in a collapsible section.
-- Planner supports add / edit / delete for:
-  - Stint
-  - Practice
-  - Qualifying
-  - Race start
-- Driver, date, start time, duration, calculated end time and notes are visible.
-- Training has its own main-page realtime refresh.
-- Existing notifications, events, results, rules, team editing, files browsing and Discord-only communication stay unchanged.
-- Service worker cache bumped to v08.
+## v0.9
+- Rules redesigned into clear category sections with numbered rules.
+- Recent Activity removed from Home.
+- Attendance gets a More view showing exactly who voted Confirmed / Unsure / Can't race.
+- Top-left SABIL GR logo fixed for dark mode.
+- Full account settings added: profile photo upload/remove, own profile editing and password change.
+- Profile settings include name, nickname, race number, country, preferred sim/class, racing goal and bio.
+- Existing Events, line-ups, statuses, Stint Planner, Training, Notifications, Results, Team, Rules, Files and Owner Edit remain.
+- Chat/Voice remain handled in Discord.
+- Service worker cache bumped to v09.
 
 ## Deployment
-Replace the full contents of `SABIL_Hub_Updates/mobile/` with this `mobile/` folder and commit to `main`.
-
-After Vercel deploys, fully close and reopen the installed PWA.
+Replace the complete `mobile/` folder in `SABIL_Hub_Updates` and deploy through Vercel. Fully close and reopen the PWA after deployment.
