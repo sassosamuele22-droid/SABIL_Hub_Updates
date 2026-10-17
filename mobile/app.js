@@ -479,17 +479,27 @@ async function deleteLineup(entryId){
 
 function openStintEditor(entryId,itemId=null){
   const en=state.currentEntries.find(x=>x.id===entryId);
-  if(!en||!canManagePlanner(en))return toast('You cannot edit this stint plan','error');
+  if(!en||!canManagePlanner(en))return toast('You can only edit the stint plan for a line-up you are driving in.','error');
   const item=itemId?(en.schedule||[]).find(x=>x.id===itemId):null;
   const driverOptions=['<option value="">— Whole team / no driver —</option>',...(en.driverIds||[]).map(id=>`<option value="${id}" ${item?.driver_id===id?'selected':''}>${safe(memberLabel(id))}</option>`)].join('');
-  openDialog(item?'Edit session / stint':'Add session / stint',`<div class="dialog-grid">
-    <div class="dialog-field"><label>Type</label><select id="stintType"><option value="stint" ${(item?.item_type||'stint')==='stint'?'selected':''}>Stint</option><option value="practice" ${item?.item_type==='practice'?'selected':''}>Practice</option><option value="qualifying" ${item?.item_type==='qualifying'?'selected':''}>Qualifying</option><option value="race_start" ${item?.item_type==='race_start'?'selected':''}>Race start</option></select></div>
-    ${field('Title','stintTitle','text',item?.title||'')}
-    ${field('Date','stintDate','date',item?.session_date||en.race_date||state.currentEvent?.event_date||'')}
-    ${field('Start time','stintTime','time',String(item?.start_time||en.race_time||'').slice(0,5))}
-    ${field('Duration (minutes)','stintDuration','number',String(item?.duration_minutes||''),'min="0" step="1"')}
-    <div class="dialog-field"><label>Driver</label><select id="stintDriver">${driverOptions}</select></div>
-    <div class="dialog-field full"><label>Notes</label><textarea id="stintNotes">${safe(item?.notes||'')}</textarea></div>
+  openDialog(item?'Edit session / stint':'Add session / stint',`<div class="stint-editor">
+    <div class="stint-editor-section">
+      <label class="stint-field full"><span>Type</span><select id="stintType"><option value="stint" ${(item?.item_type||'stint')==='stint'?'selected':''}>Stint</option><option value="practice" ${item?.item_type==='practice'?'selected':''}>Practice</option><option value="qualifying" ${item?.item_type==='qualifying'?'selected':''}>Qualifying</option><option value="race_start" ${item?.item_type==='race_start'?'selected':''}>Race start</option></select></label>
+      <label class="stint-field full"><span>Title</span><input id="stintTitle" type="text" value="${safe(item?.title||'')}" placeholder="e.g. Stint 2"></label>
+    </div>
+    <div class="stint-editor-section">
+      <div class="stint-editor-two">
+        <label class="stint-field"><span>Date</span><input id="stintDate" type="date" value="${safe(item?.session_date||en.race_date||state.currentEvent?.event_date||'')}"></label>
+        <label class="stint-field"><span>Start time</span><input id="stintTime" type="time" value="${safe(String(item?.start_time||en.race_time||'').slice(0,5))}"></label>
+      </div>
+      <div class="stint-editor-two">
+        <label class="stint-field"><span>Duration</span><div class="input-with-unit"><input id="stintDuration" type="number" min="0" step="1" value="${safe(String(item?.duration_minutes||''))}" placeholder="60"><b>min</b></div></label>
+        <label class="stint-field"><span>Driver</span><select id="stintDriver">${driverOptions}</select></label>
+      </div>
+    </div>
+    <div class="stint-editor-section">
+      <label class="stint-field full"><span>Notes</span><textarea id="stintNotes" rows="3" placeholder="Optional notes">${safe(item?.notes||'')}</textarea></label>
+    </div>
   </div>`,[{label:item?'Save changes':'Add session',primary:true,run:async()=>{
     const date=$('#stintDate').value,time=$('#stintTime').value;
     if(!date||!time)return toast('Date and start time are required','error'),false;
@@ -946,7 +956,7 @@ function renderSettings(c){
       <div class="settings-row"><div><strong>${t('theme')}</strong><p>${t('theme_sub')}</p></div><select id="settingsTheme" class="settings-select"><option value="dark" ${userPrefs.theme==='dark'?'selected':''}>${t('dark')}</option><option value="light" ${userPrefs.theme==='light'?'selected':''}>${t('light')}</option><option value="system" ${userPrefs.theme==='system'?'selected':''}>${t('system')}</option></select></div>
     </div>
     <div class="settings-section"><h3>${t('app')}</h3>
-      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.13 · same live data as Desktop</p></div><button id="settingsInstall">${t('install')}</button></div>
+      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.14 · same live data as Desktop</p></div><button id="settingsInstall">${t('install')}</button></div>
       <div class="settings-row"><div><strong>${t('push_notifications')}</strong><p>${safe(pushStatusText())}</p></div>${state.pushSubscription?`<button id="settingsPushToggle" class="danger-btn">${t('disable')}</button>`:`<button id="settingsPushToggle">${t('enable')}</button>`}</div>
       ${isOwner()?`<div class="settings-row"><div><strong>${t('owner_edit')}</strong><p>${t('owner_edit_sub')}</p></div><button id="settingsEdit">${state.ownerEdit?t('finish_edit'):t('edit')}</button></div>`:''}
       <div class="settings-row"><div><strong>${t('files')}</strong><p>Browse/download here · uploads stay in Windows Hub</p></div></div>
@@ -970,7 +980,7 @@ function openPasswordEditor(){openDialog('Change password',`<div class="dialog-g
 
 
 function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[]}
-function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entries',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entry_drivers',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['entry_schedule_items',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>{if(state.currentPage==='training')renderTraining($('#trainingPageContent'));if(state.currentPage==='subpage'&&state.subpageKind==='training')renderTraining($('#subpageContent'))}],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v013-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
+function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entries',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entry_drivers',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['entry_schedule_items',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>{if(state.currentPage==='training')renderTraining($('#trainingPageContent'));if(state.currentPage==='subpage'&&state.subpageKind==='training')renderTraining($('#subpageContent'))}],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v014-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;$('#installButton').classList.remove('hidden')});
 $('#installButton').onclick=installPwa;

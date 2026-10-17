@@ -27,3 +27,11 @@ Replace the complete `mobile/` folder in the update repository and deploy. Fully
 - Fixed compact and working line-up status selector.
 - Only drivers assigned to a line-up can edit its Stint Planner.
 - Admin/Owner can still view other line-ups and plans, but cannot edit their stints unless assigned.
+
+
+## v0.14
+- Rebuilt the mobile Stint Planner editor layout.
+- Fixed oversized/broken iOS date and time fields.
+- Date and Start time now use a compact two-column layout.
+- Duration and Driver use the same compact layout.
+- Inputs have consistent mobile sizing and spacing.

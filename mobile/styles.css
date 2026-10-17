@@ -271,3 +271,19 @@ html[data-theme="light"] .push-prompt p,html[data-theme="light"] .subtle,html[da
 .lineup-status-select:disabled{opacity:.55}
 .event-top{align-items:flex-start}
 .planner-readonly{display:block;margin-top:4px;color:var(--muted);font-size:9px;font-weight:500;letter-spacing:0}
+
+/* v0.14 stint editor redesign */
+.stint-editor{display:grid;gap:12px}
+.stint-editor-section{display:grid;gap:10px;border:1px solid #242424;background:#0a0a0a;border-radius:14px;padding:12px}
+.stint-editor-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stint-field{display:grid;gap:6px;min-width:0}
+.stint-field>span{color:#9a9a9a;font-size:10px;font-weight:800;letter-spacing:.04em}
+.stint-field input,.stint-field select,.stint-field textarea{width:100%!important;min-width:0!important;box-sizing:border-box!important;border:1px solid #333!important;background:#111!important;color:#fff!important;border-radius:12px!important;padding:11px 12px!important;min-height:44px!important;height:44px!important;font-size:14px!important;line-height:1.2!important;text-align:left!important;-webkit-appearance:none;appearance:none}
+.stint-field textarea{height:auto!important;min-height:78px!important;resize:vertical}
+.stint-field input[type="date"],.stint-field input[type="time"]{display:block!important;font-variant-numeric:tabular-nums}
+.stint-field input[type="date"]::-webkit-date-and-time-value,.stint-field input[type="time"]::-webkit-date-and-time-value{text-align:left}
+.stint-field input[type="date"]::-webkit-calendar-picker-indicator,.stint-field input[type="time"]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.75}
+.input-with-unit{position:relative}
+.input-with-unit input{padding-right:44px!important}
+.input-with-unit b{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#777;font-size:10px;pointer-events:none}
+@media(max-width:390px){.stint-editor-two{grid-template-columns:1fr}}
