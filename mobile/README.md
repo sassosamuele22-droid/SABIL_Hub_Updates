@@ -1,17 +1,21 @@
-# SABIL GR Hub Mobile PWA v0.9
+# SABIL GR Hub Mobile PWA v0.10
 
-Mobile-first usability release.
+Adds real OS-level Web Push notifications.
 
-## v0.9
-- Rules redesigned into clear category sections with numbered rules.
-- Recent Activity removed from Home.
-- Attendance gets a More view showing exactly who voted Confirmed / Unsure / Can't race.
-- Top-left SABIL GR logo fixed for dark mode.
-- Full account settings added: profile photo upload/remove, own profile editing and password change.
-- Profile settings include name, nickname, race number, country, preferred sim/class, racing goal and bio.
-- Existing Events, line-ups, statuses, Stint Planner, Training, Notifications, Results, Team, Rules, Files and Owner Edit remain.
-- Chat/Voice remain handled in Discord.
-- Service worker cache bumped to v09.
+## Push
+After a user taps Enable and grants permission, the installed PWA can receive SABIL GR notifications even while closed.
 
-## Deployment
-Replace the complete `mobile/` folder in `SABIL_Hub_Updates` and deploy through Vercel. Fully close and reopen the PWA after deployment.
+The backend is already configured in the connected Supabase project with:
+- push_subscriptions table with per-user RLS
+- automatic notifications -> push database trigger
+- deployed sabil-push Edge Function
+- VAPID Web Push keys
+
+Push is generated from the shared notifications table, so Desktop/backend notifications can reach Mobile too.
+
+Tapping a push can open the related Event, Updates, Results, or Home and marks the in-app notification as read.
+
+Settings now includes Enable/Disable Push Notifications. Home also offers an Enable card until configured.
+
+## Deploy
+Replace the full SABIL_Hub_Updates/mobile/ directory and commit to main. After Vercel redeploys, fully close/reopen the PWA so cache v010 loads. Each user must tap Enable once and approve notification permission.
