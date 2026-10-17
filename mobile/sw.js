@@ -1,6 +1,6 @@
-const CACHE='sabil-gr-mobile-v010';
+const CACHE='sabil-gr-mobile-v010-hotfix1';
 const SHELL=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon.svg','./logo.png'];
-self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())));
+self.addEventListener('install',e=>e.waitUntil((async()=>{const c=await caches.open(CACHE);await Promise.allSettled(SHELL.map(x=>c.add(x)));await self.skipWaiting()})()));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;const u=new URL(e.request.url);if(u.origin!==location.origin)return;e.respondWith(fetch(e.request).then(r=>{const clone=r.clone();caches.open(CACHE).then(c=>c.put(e.request,clone));return r}).catch(()=>caches.match(e.request).then(r=>r||caches.match('./index.html'))))});
 self.addEventListener('push',event=>{let data={};try{data=event.data?.json?.()||{}}catch{data={body:event.data?.text?.()||''}}const title=data.title||'SABIL GR Hub';const options={body:data.body||'You have a new team update.',icon:'./icon.svg',badge:'./icon.svg',tag:data.tag||undefined,renotify:true,data:{notificationId:data.notificationId||null,open:data.open||{page:'home',id:null}}};event.waitUntil(self.registration.showNotification(title,options))});

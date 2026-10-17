@@ -1,5 +1,12 @@
 # SABIL GR Hub Mobile PWA v0.10
 
+## v0.10 hotfix
+- Fixed startup/login regression from the first push build.
+- Push initialization is now non-blocking.
+- Fixed Home render runtime issue.
+- Login logo is white.
+- Cache namespace is `v010-hotfix1`.
+
 Adds real OS-level Web Push notifications.
 
 ## Push
