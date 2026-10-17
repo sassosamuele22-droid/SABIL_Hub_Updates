@@ -155,3 +155,69 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   .planner-actions{margin-top:9px}
   .event-management-actions{display:grid;grid-template-columns:1fr 1fr}
 }
+
+
+/* v0.8 lineup status / planner / training tab */
+.bottom-nav{grid-template-columns:repeat(5,1fr)}
+.lineup-status-select{
+  appearance:none;
+  -webkit-appearance:none;
+  min-width:104px;
+  padding-right:26px;
+  background:
+    linear-gradient(45deg,transparent 50%,#aaa 50%) calc(100% - 15px) 50%/5px 5px no-repeat,
+    linear-gradient(135deg,#aaa 50%,transparent 50%) calc(100% - 10px) 50%/5px 5px no-repeat,
+    #111;
+  color:#fff;
+}
+.lineup-meta-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin-top:12px
+}
+.lineup-meta-grid>div{
+  border:1px solid #252525;
+  background:#0b0b0b;
+  border-radius:10px;
+  padding:9px
+}
+.lineup-meta-grid small{
+  display:block;
+  color:#777;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.08em
+}
+.lineup-meta-grid strong{
+  display:block;
+  margin-top:3px;
+  font-size:11px;
+  word-break:break-word
+}
+.planner-card{
+  margin-top:14px;
+  border-top:1px solid #242424;
+  padding-top:12px
+}
+.planner-title{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px
+}
+.planner-title span{
+  display:grid;
+  place-items:center;
+  min-width:24px;
+  height:24px;
+  border:1px solid #333;
+  border-radius:999px;
+  font-size:10px;
+  color:var(--muted)
+}
+.lineup-create-btn{white-space:nowrap}
+@media(max-width:390px){
+  .lineup-meta-grid{grid-template-columns:1fr 1fr}
+  .lineup-create-btn{padding:8px 10px;font-size:10px}
+}

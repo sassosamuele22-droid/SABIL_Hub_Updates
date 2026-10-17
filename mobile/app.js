@@ -153,7 +153,7 @@ async function loadProfiles(){
 function applyEditMode(){if(!isOwner())state.ownerEdit=false;document.body.classList.toggle('owner-editing',isOwner()&&state.ownerEdit);$('#editModeButton').textContent=state.ownerEdit?'Finish edit':'Edit'}
 $('#editModeButton').onclick=()=>{if(!isOwner())return;state.ownerEdit=!state.ownerEdit;applyEditMode();toast(state.ownerEdit?'Edit mode on':'Edit mode off')};
 
-function nav(page){state.currentPage=page;if(page!=='subpage')state.subpageKind=null;$$('.page').forEach(p=>p.classList.add('hidden'));$(`.page[data-page="${page}"]`)?.classList.remove('hidden');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));window.scrollTo(0,0);if(page==='home')loadHome();if(page==='events')loadEvents();if(page==='updates'){loadAnnouncements();loadPolls()}}
+function nav(page){state.currentPage=page;if(page!=='subpage')state.subpageKind=null;$$('.page').forEach(p=>p.classList.add('hidden'));$(`.page[data-page="${page}"]`)?.classList.remove('hidden');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));window.scrollTo(0,0);if(page==='home')loadHome();if(page==='events')loadEvents();if(page==='training')renderTraining($('#trainingPageContent'));if(page==='updates'){loadAnnouncements();loadPolls()}}
 $$('[data-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.nav));$('#profileButton').onclick=()=>showSubpage('settings');$('#backMore').onclick=()=>nav('more');$$('[data-subpage]').forEach(b=>b.onclick=()=>showSubpage(b.dataset.subpage));
 
 function renderHomeProfile(){const p=state.profile||{};$('#homeProfile').innerHTML=`<div class="profile-row"><div class="profile-avatar">${avatarHtml(p)}</div><div><p class="eyebrow">Signed in</p><h3>${safe(p.full_name||p.nickname||'Team member')}</h3><p>${safe(p.nickname||'')} ${p.race_number?`#${safe(p.race_number)}`:''}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div>`}
@@ -278,7 +278,7 @@ function renderEventDetail({event,entries,attendance}){
     ${currentStatus==='finished'?`<button class="chip-btn" data-event-status="open" data-event="${id}">Reopen</button>`:`<button class="chip-btn success" data-event-status="finished" data-event="${id}">Mark finished</button>`}
     <button class="chip-btn danger" data-event-delete="${id}">Delete</button>
   </div>`:'';
-  const lineupButton=currentStatus==='open'?`<button class="chip-btn primary" data-lineup-new="${id}">+ Line-up</button>`:'';
+  const lineupButton=currentStatus==='open'?`<button class="chip-btn primary lineup-create-btn" data-lineup-new="${id}">+ Create line-up</button>`:'';
 
   $('#subpageContent').innerHTML=`
     <div class="page-heading row-between">
@@ -305,14 +305,25 @@ function renderEventDetail({event,entries,attendance}){
       return `<div class="lineup-card">
         <div class="event-top">
           <div><strong>${safe(en.entry_name||'SABIL Entry')}${en.car_number?` · #${safe(en.car_number)}`:''}</strong><p>${safe(en.vehicle||'')}</p></div>
-          <span class="status-pill">${safe(en.status||'draft')}</span>
+          ${lineupAllowed?`<select class="lineup-status-select status-pill" data-lineup-status="${en.id}">
+            <option value="draft" ${en.status==='draft'?'selected':''}>draft</option>
+            <option value="ready" ${en.status==='ready'?'selected':''}>ready</option>
+            <option value="confirmed" ${en.status==='confirmed'?'selected':''}>confirmed</option>
+          </select>`:`<span class="status-pill">${safe(en.status||'draft')}</span>`}
         </div>
-        <p class="subtle">${en.race_date?fmtDate(en.race_date):'—'}${en.race_time?` · ${fmtTime(en.race_time)}`:''}</p>
+        <div class="lineup-meta-grid">
+          <div><small>RACE DATE</small><strong>${en.race_date?fmtDate(en.race_date):'—'}</strong></div>
+          <div><small>START</small><strong>${en.race_time?fmtTime(en.race_time):'—'}</strong></div>
+          <div><small>CAR</small><strong>${safe(en.vehicle||'—')}</strong></div>
+          <div><small>NUMBER</small><strong>${safe(en.car_number||'—')}</strong></div>
+          ${en.iracing_team_name?`<div><small>iRACING TEAM</small><strong>${safe(en.iracing_team_name)}</strong></div>`:''}
+          ${en.iracing_team_id?`<div><small>TEAM ID</small><strong>${safe(en.iracing_team_id)}</strong></div>`:''}
+        </div>
         <div class="driver-pill-list">${(en.driverIds||[]).length?en.driverIds.map(memberPill).join(''):'<span class="subtle">No drivers assigned</span>'}</div>
         ${lineupAllowed?`<div class="lineup-actions"><button class="small-action" data-lineup-edit="${en.id}">Edit</button><button class="small-action danger" data-lineup-delete="${en.id}">Delete</button></div>`:''}
 
-        <details class="planner-card" open>
-          <summary><strong>Stint & Session Planner</strong><span>${sched.length}</span></summary>
+        <div class="planner-card">
+          <div class="planner-title"><strong>Stint & Session Planner</strong><span>${sched.length}</span></div>
           <div class="planner-list">
             ${sched.length?sched.map(x=>`<div class="planner-item">
               <div class="planner-main"><strong>${safe(x.title||scheduleLabel(x))}</strong><p>${fmtDate(x.session_date)} · ${fmtTime(x.start_time)}${x.duration_minutes?` · ${x.duration_minutes} min`:''}</p><p>${x.driver_id?`Driver: ${safe(memberLabel(x.driver_id))}`:'Whole team'}${x.duration_minutes?` · Ends ${addMinutesLabel(x.session_date,x.start_time,x.duration_minutes)}`:''}</p>${x.notes?`<p class="planner-notes">${safe(x.notes)}</p>`:''}</div>
@@ -320,7 +331,7 @@ function renderEventDetail({event,entries,attendance}){
             </div>`).join(''):empty('No sessions planned yet')}
           </div>
           ${plannerAllowed?`<button class="chip-btn planner-add" data-stint-new="${en.id}">+ Add session / stint</button>`:''}
-        </details>
+        </div>
       </div>`
     }).join(''):empty('No line-ups yet')}</div>`;
 }
@@ -509,6 +520,16 @@ document.addEventListener('click',async e=>{
     const {error}=await supabase.from('event_attendance').upsert(payload,{onConflict:'event_id,driver_id'});
     if(error)return toast(error.message,'error');
     toast('Attendance updated');return showEventDetail(att.dataset.event)
+  }
+  const statusSelect=e.target.closest('[data-lineup-status]');
+  if(statusSelect){
+    const en=state.currentEntries.find(x=>x.id===statusSelect.dataset.lineupStatus);
+    if(!en||!canManageLineup(en))return;
+    const {error}=await supabase.from('event_entries').update({status:statusSelect.value}).eq('id',en.id);
+    if(error){toast(error.message,'error');return showEventDetail(state.currentEvent.id)}
+    await notifyEntryTeam(en.id,'Line-up status updated',`${en.entry_name||'Line-up'} is now ${statusSelect.value}.`,'lineup');
+    toast('Line-up status updated');
+    return showEventDetail(state.currentEvent.id)
   }
   const newLine=e.target.closest('[data-lineup-new]');if(newLine)return openLineupEditor(newLine.dataset.lineupNew);
   const editLine=e.target.closest('[data-lineup-edit]');if(editLine)return openLineupEditor(state.currentEvent.id,editLine.dataset.lineupEdit);
@@ -788,7 +809,7 @@ function renderSettings(c){
     <div class="profile-row"><div class="profile-avatar">${avatarHtml(p)}</div><div><strong>${safe(p.full_name||p.nickname||state.session.user.email)}</strong><p>${safe(state.session.user.email)}</p></div></div>
     <div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div>
     <div class="divider"></div>
-    <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.7 · same Supabase data as Desktop</p></div><button id="settingsInstall">Install</button></div>
+    <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.8 · same Supabase data as Desktop</p></div><button id="settingsInstall">Install</button></div>
     ${isOwner()?`<div class="settings-row"><div><strong>Owner Edit mode</strong><p>Rules, team members, events and announcements</p></div><button id="settingsEdit">${state.ownerEdit?'Finish':'Edit'}</button></div>`:''}
     <div class="settings-row"><div><strong>Files</strong><p>Browse and download here · uploads stay in the Windows Hub</p></div></div>
     <div class="settings-row"><div><strong>Communication</strong><p>Chat and voice are handled in Discord</p></div></div>
@@ -800,7 +821,7 @@ function renderSettings(c){
 
 
 function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[]}
-function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entries',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entry_drivers',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['entry_schedule_items',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>state.currentPage==='subpage'&&state.subpageKind==='training'&&renderTraining($('#subpageContent'))],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v07-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
+function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entries',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entry_drivers',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['entry_schedule_items',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>{if(state.currentPage==='training')renderTraining($('#trainingPageContent'));if(state.currentPage==='subpage'&&state.subpageKind==='training')renderTraining($('#subpageContent'))}],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v08-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;$('#installButton').classList.remove('hidden')});
 $('#installButton').onclick=installPwa;
