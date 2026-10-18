@@ -1,4 +1,4 @@
-# SABIL GR Hub Mobile PWA v0.13
+# SABIL GR Hub Mobile PWA v0.15
 
 Mobile-first launch-candidate update.
 
@@ -35,3 +35,19 @@ Replace the complete `mobile/` folder in the update repository and deploy. Fully
 - Date and Start time now use a compact two-column layout.
 - Duration and Driver use the same compact layout.
 - Inputs have consistent mobile sizing and spacing.
+
+
+## v0.15
+- Added **Create new account** directly on the login screen.
+- New auth users automatically receive a normal active Driver profile in the shared `profiles` table.
+- Fixed the real push backend permission problem (`permission denied for table push_subscriptions`).
+- Push delivery backend health-check now returns HTTP 200.
+- Important notifications are generated server-side, so they work regardless of whether the item was created from Mobile or another Hub client.
+- Push is now intentionally limited to meaningful team updates:
+  - new Event
+  - new Line-up
+  - new Training
+  - new Poll
+  - new Announcement
+- No push for line-up status changes, stint edits, or other small edits.
+- Training push opens the Training page.

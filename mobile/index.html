@@ -25,6 +25,20 @@
         <button class="primary-btn" type="submit" data-i18n="sign_in">Sign in</button>
         <p id="loginError" class="error-text hidden"></p>
       </form>
+      <div id="loginCreateArea" class="login-create-area">
+        <span data-i18n="no_account">No account yet?</span>
+        <button id="showSignup" class="login-link-btn" type="button" data-i18n="create_account">Create new account</button>
+      </div>
+      <form id="signupForm" class="stack gap-lg hidden">
+        <div class="signup-heading"><strong data-i18n="create_account">Create new account</strong><small data-i18n="team_members_only">For SABIL GR team members only.</small></div>
+        <label class="field"><span data-i18n="full_name">Full name</span><input id="signupName" type="text" autocomplete="name" required /></label>
+        <label class="field"><span data-i18n="email">Email</span><input id="signupEmail" type="email" autocomplete="email" placeholder="name@example.com" required /></label>
+        <label class="field"><span data-i18n="password">Password</span><input id="signupPassword" type="password" autocomplete="new-password" minlength="8" placeholder="••••••••" required /></label>
+        <label class="field"><span data-i18n="repeat_password">Repeat password</span><input id="signupPassword2" type="password" autocomplete="new-password" minlength="8" placeholder="••••••••" required /></label>
+        <button class="primary-btn" type="submit" data-i18n="create_account">Create new account</button>
+        <button id="backToLogin" class="secondary-btn" type="button" data-i18n="back_to_signin">Back to sign in</button>
+        <p id="signupMessage" class="login-message hidden"></p>
+      </form>
     </section>
   </main>
 
