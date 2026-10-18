@@ -1,4 +1,4 @@
-# SABIL GR Hub Mobile PWA v0.15
+# SABIL GR Hub Mobile PWA v0.16
 
 Mobile-first launch-candidate update.
 
@@ -51,3 +51,12 @@ Replace the complete `mobile/` folder in the update repository and deploy. Fully
   - new Announcement
 - No push for line-up status changes, stint edits, or other small edits.
 - Training push opens the Training page.
+
+
+## v0.16 login hotfix
+- Fixed successful sign-in getting stuck on the login screen.
+- Login now enters the app directly from the returned Supabase session instead of relying only on the auth event callback.
+- Auth startup calls are de-duplicated safely instead of being dropped during a race.
+- New-account signup with an immediate session now enters the app directly too.
+- Repaired a malformed leftover line in Event creation from the previous notification cleanup.
+- Important-only push backend from v0.15 remains unchanged.

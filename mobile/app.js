@@ -174,7 +174,19 @@ function openDialog(title,body,actions=[]){
 const field=(label,id,type='text',value='',extra='')=>`<div class="dialog-field"><label for="${id}">${safe(label)}</label><input id="${id}" type="${type}" value="${safe(value)}" ${extra}></div>`;
 
 $('#togglePassword').onclick=()=>{const i=$('#password');i.type=i.type==='password'?'text':'password'};
-$('#loginForm').onsubmit=async e=>{e.preventDefault();$('#loginError').classList.add('hidden');const {error}=await supabase.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});if(error){$('#loginError').textContent=error.message;$('#loginError').classList.remove('hidden')}};
+$('#loginForm').onsubmit=async e=>{
+  e.preventDefault();
+  const err=$('#loginError');err.classList.add('hidden');
+  const submit=$('#loginForm button[type="submit"]');if(submit)submit.disabled=true;
+  try{
+    const {data,error}=await supabase.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});
+    if(error){err.textContent=error.message;err.classList.remove('hidden');return}
+    if(!data?.session){err.textContent='Sign-in succeeded but no session was returned. Please try again.';err.classList.remove('hidden');return}
+    state.session=data.session;
+    await safeEnterApp();
+  }catch(ex){err.textContent=ex?.message||'Could not sign in.';err.classList.remove('hidden')}
+  finally{if(submit)submit.disabled=false}
+};
 function setAuthMode(mode){
   const signup=mode==='signup';
   $('#loginForm').classList.toggle('hidden',signup);
@@ -196,15 +208,38 @@ $('#signupForm').onsubmit=async e=>{
   const {data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:fullName}}});
   button.disabled=false;
   if(error){msg.textContent=error.message;msg.classList.remove('hidden');msg.classList.add('error-text');return}
-  if(data?.session){msg.textContent='Account created. Signing you in…';msg.classList.remove('hidden');msg.classList.add('success-text')}
-  else{msg.textContent='Account created. Check your email if confirmation is required, then sign in.';msg.classList.remove('hidden');msg.classList.add('success-text');setTimeout(()=>{setAuthMode('login');$('#email').value=email},1800)}
+  if(data?.session){
+    msg.textContent='Account created. Signing you in…';msg.classList.remove('hidden');msg.classList.add('success-text');
+    state.session=data.session;await safeEnterApp()
+  }else{msg.textContent='Account created. Check your email if confirmation is required, then sign in.';msg.classList.remove('hidden');msg.classList.add('success-text');setTimeout(()=>{setAuthMode('login');$('#email').value=email},1800)}
 };
 
 
-let appEntering=false;
-async function safeEnterApp(){if(appEntering)return;appEntering=true;try{await enterApp()}catch(e){console.error('App startup failed',e);$('#loginView').classList.add('hidden');$('#appView').classList.remove('hidden');toast('The Hub started with a recoverable error. Please reload if something is missing.','error')}finally{appEntering=false}}
-supabase.auth.onAuthStateChange((_e,s)=>{state.session=s;setTimeout(()=>{s?safeEnterApp():showLogin()},0)});
-const {data:{session}}=await supabase.auth.getSession();state.session=session;session?await safeEnterApp():showLogin();
+let appEnterPromise=null;
+function safeEnterApp(){
+  if(appEnterPromise)return appEnterPromise;
+  appEnterPromise=(async()=>{
+    try{
+      if(!state.session){const {data}=await supabase.auth.getSession();state.session=data?.session||null}
+      if(!state.session){showLogin();return}
+      await enterApp();
+    }catch(e){
+      console.error('App startup failed',e);
+      $('#loginView').classList.add('hidden');
+      $('#appView').classList.remove('hidden');
+      toast('The Hub started with a recoverable error. Please reload if something is missing.','error')
+    }finally{appEnterPromise=null}
+  })();
+  return appEnterPromise
+}
+supabase.auth.onAuthStateChange((event,s)=>{
+  state.session=s;
+  if(event==='SIGNED_OUT'){showLogin();return}
+  if(s)setTimeout(()=>safeEnterApp(),0)
+});
+const {data:{session}}=await supabase.auth.getSession();
+state.session=session;
+if(session)await safeEnterApp();else showLogin();
 
 function showLogin(){cleanupRealtime();$('#loginView').classList.remove('hidden');$('#appView').classList.add('hidden')}
 async function enterApp(){
@@ -588,7 +623,7 @@ async function openEventEditor(event=null){
     }else{
       payload.status='open';payload.created_by=state.session?.user?.id;
       const {data,error}=await supabase.from('events').insert(payload).select().single();
-      if(error){toast(error.message,'error');return false}saved=data;}`,'event','event',saved.id)
+      if(error){toast(error.message,'error');return false}saved=data
     }
     await loadEvents();
     if(editing)await showEventDetail(saved.id);
@@ -852,7 +887,7 @@ async function renderTraining(c){
   $('#newTraining').onclick=()=>openDialog('New training session',`<div class="dialog-grid">${field('Title','trTitle')}<div class="dialog-field"><label for="trSim">Simulation</label><select id="trSim"><option>iRacing</option><option>Le Mans Ultimate</option></select></div>${trackField('Track','trTrack')}${field('Date','trDate','date')}${field('Start time','trTime','time')}${field('Duration minutes','trDur','number','60')}<div class="dialog-field"><label>Notes</label><textarea id="trNotes"></textarea></div></div>`,[{label:'Create',primary:true,run:async()=>{
     const {data,error}=await supabase.from('training_sessions').insert({title:$('#trTitle').value.trim(),scope:'team',simulation:$('#trSim').value.trim(),track:$('#trTrack').value.trim(),session_date:$('#trDate').value,start_time:$('#trTime').value||null,duration_minutes:Number($('#trDur').value)||60,notes:$('#trNotes').value.trim(),status:'planned',created_by:state.session?.user?.id}).select().single();
     if(error){toast(error.message,'error');return false}
-    toast('Training created · team notification sent');renderTraining(c);return true
+    toast('Training created');renderTraining(c);return true
   }}])
 }
 async function renderResults(c){
@@ -977,7 +1012,7 @@ function renderSettings(c){
       <div class="settings-row"><div><strong>${t('theme')}</strong><p>${t('theme_sub')}</p></div><select id="settingsTheme" class="settings-select"><option value="dark" ${userPrefs.theme==='dark'?'selected':''}>${t('dark')}</option><option value="light" ${userPrefs.theme==='light'?'selected':''}>${t('light')}</option><option value="system" ${userPrefs.theme==='system'?'selected':''}>${t('system')}</option></select></div>
     </div>
     <div class="settings-section"><h3>${t('app')}</h3>
-      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.15 · same live data as Desktop</p></div><button id="settingsInstall">${t('install')}</button></div>
+      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.16 · same live data as Desktop</p></div><button id="settingsInstall">${t('install')}</button></div>
       <div class="settings-row"><div><strong>${t('push_notifications')}</strong><p>${safe(pushStatusText())}</p></div>${state.pushSubscription?`<button id="settingsPushToggle" class="danger-btn">${t('disable')}</button>`:`<button id="settingsPushToggle">${t('enable')}</button>`}</div>
       ${isOwner()?`<div class="settings-row"><div><strong>${t('owner_edit')}</strong><p>${t('owner_edit_sub')}</p></div><button id="settingsEdit">${state.ownerEdit?t('finish_edit'):t('edit')}</button></div>`:''}
       <div class="settings-row"><div><strong>${t('files')}</strong><p>Browse/download here · uploads stay in Windows Hub</p></div></div>
@@ -1001,7 +1036,7 @@ function openPasswordEditor(){openDialog('Change password',`<div class="dialog-g
 
 
 function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[]}
-function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entries',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entry_drivers',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['entry_schedule_items',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>{if(state.currentPage==='training')renderTraining($('#trainingPageContent'));if(state.currentPage==='subpage'&&state.subpageKind==='training')renderTraining($('#subpageContent'))}],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v015-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
+function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entries',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entry_drivers',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['entry_schedule_items',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>{if(state.currentPage==='training')renderTraining($('#trainingPageContent'));if(state.currentPage==='subpage'&&state.subpageKind==='training')renderTraining($('#subpageContent'))}],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v016-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;$('#installButton').classList.remove('hidden')});
 $('#installButton').onclick=installPwa;
