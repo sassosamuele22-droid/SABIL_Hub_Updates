@@ -65,6 +65,6 @@ jobs:
             "app/dist/latest.yml" `
             --repo "$env:GITHUB_REPOSITORY" `
             --title "SABIL GR Hub v$version" `
-            --notes "Windows v$version: fixes startup errors affecting navigation, calendar and file manager." `
+            --notes "Windows v${version}: fixes startup errors affecting navigation, calendar and file manager." `
             --latest `
             --verify-tag
