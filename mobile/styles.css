@@ -298,3 +298,15 @@ html[data-theme="light"] .push-prompt p,html[data-theme="light"] .subtle,html[da
 .signup-heading{display:grid;gap:4px;margin-bottom:2px}
 .signup-heading strong{font-size:17px}.signup-heading small{color:var(--muted);font-size:10px}
 .login-message{font-size:11px;line-height:1.45;margin:0}.success-text{color:#8ee0ad}.secondary-btn{width:100%;border:1px solid #333;background:#111;color:var(--text);border-radius:12px;padding:12px;font-weight:800}
+
+/* v0.18 calendar + shared file explorer */
+.calendar-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}.calendar-controls strong{flex:1;min-width:120px;text-align:center;text-transform:capitalize}
+.calendar-head-grid,.calendar-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.calendar-head-grid span{text-align:center;font-size:11px;color:var(--muted,#999);padding:6px}
+.calendar-day{min-width:0;min-height:78px;border:1px solid var(--line,#333);border-radius:8px;padding:3px;overflow:hidden;background:rgba(255,255,255,.025)}
+.calendar-day.today{border-color:#bbb}.calendar-day.other-month{opacity:.35}.calendar-day-date{border:0;background:none;color:inherit;font-size:12px;padding:2px;cursor:pointer;display:block}
+.calendar-appointment{display:block;width:100%;border:0;border-radius:4px;text-align:left;margin:3px 0;padding:3px 4px;font-size:10px;line-height:1.35;overflow-wrap:anywhere;cursor:pointer}
+.calendar-appointment.event{background:#f3f3f3;color:#131313}.calendar-appointment.training{background:#777;color:#fff}.calendar-appointment small{font-size:9px}
+.calendar-month-grid.daily{grid-template-columns:minmax(0,1fr)}.calendar-month-grid.daily .calendar-day{min-height:240px}.calendar-month-grid.daily .calendar-appointment{font-size:14px;padding:12px}
+.file-explorer-bar,.file-upload-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}.file-explorer-bar span{min-width:0;flex:1;overflow-wrap:anywhere;font-size:13px}
+#filesUploadInput,#filesFolderInput{display:none}.file-upload-controls label{display:inline-flex;align-items:center;cursor:pointer}
+@media(max-width:380px){.calendar-day{min-height:60px}.calendar-appointment{font-size:9px;padding:2px}.calendar-appointment small{display:none}}

@@ -1,0 +1,6 @@
+SABIL GR Hub v0.8.2
+
+- Removed @management, @lineup and @event mentions.
+- Replaced native browser/Windows alert, confirm and prompt dialogs with SABIL in-app toasts/dialogs.
+- Added global error and unhandled promise handling so errors no longer lock the UI.
+- Delete confirmations now use the in-app SABIL confirmation dialog.

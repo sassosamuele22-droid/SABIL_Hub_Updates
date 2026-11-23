@@ -1,0 +1,69 @@
+{
+  "name": "sabil-hub-desktop",
+  "version": "0.9.11",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "desktop": "electron .",
+    "build:windows": "electron-packager . \"SABIL GR Hub\" --platform=win32 --arch=x64 --icon=sabil.ico --overwrite --out=dist --prune=true",
+    "build:installer": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "express": "^4.21.1",
+    "socket.io": "^4.8.1",
+    "multer": "^1.4.5-lts.1",
+    "tesseract.js": "^5.1.1",
+    "@supabase/supabase-js": "^2.57.4",
+    "electron-updater": "^6.6.2"
+  },
+  "main": "electron-main.cjs",
+  "description": "SABIL GR team operations: events, line-ups, calendar, files and training",
+  "devDependencies": {
+    "electron": "^37.4.0",
+    "@electron/packager": "^18.3.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.sabilracing.hub",
+    "productName": "SABIL GR Hub",
+    "files": [
+      "electron-main.cjs",
+      "preload.cjs",
+      "server.js",
+      "public/**/*",
+      "package.json",
+      "sabil.ico",
+      "sabil-icon.png"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "sabil.ico",
+      "artifactName": "SABIL-GR-Hub-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SABIL GR Hub"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "sassosamuele22-droid",
+        "repo": "SABIL_Hub_Updates",
+        "releaseType": "release"
+      }
+    ],
+    "artifactName": "SABIL-GR-Hub-Setup-${version}.${ext}"
+  }
+}

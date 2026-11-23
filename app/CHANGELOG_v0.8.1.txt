@@ -1,0 +1,9 @@
+SABIL GR Hub v0.8.1
+
+- Slightly reduced sidebar logo size.
+- Removed always-visible mention shortcuts; @ now opens an autocomplete popup.
+- Added in-app styled error toasts instead of Windows alert error dialogs.
+- Fixed profile update permissions and owner role editing.
+- Replaced free-form role tags with primary + optional secondary role dropdowns.
+- Reworked Poll creation into a reliable modal with a name/question, single/multiple answer mode, and 2-15 options.
+- Improved secondary-role permission handling across server checks and mentions.

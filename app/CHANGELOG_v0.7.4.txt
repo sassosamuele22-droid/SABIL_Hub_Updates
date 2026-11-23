@@ -1,0 +1,7 @@
+SABIL GR Hub v0.7.4
+
+- Update system now always targets the newest published GitHub release.
+- Users can skip intermediate versions and update directly to the latest version.
+- Removed automatic Windows update popup when an update is found.
+- Settings now shows the latest available version and a dedicated Download latest button.
+- Download progress and Restart & install remain in-app.

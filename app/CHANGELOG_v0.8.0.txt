@@ -1,0 +1,39 @@
+SABIL GR Hub v0.8.0
+
+FOUNDATION / PERMISSIONS
+- System roles simplified to Owner, Admin and Driver.
+- Owner is the only role that can change system roles and additional role tags.
+- Admin cannot promote users to Admin or Owner.
+- Admin cannot moderate the Owner.
+- Team Rules are Owner-only to create/edit/remove.
+- Events can be created/edited/deleted by Owner and Admin.
+- Drivers can create line-ups inside events.
+- The creator of a line-up is its Line-up Manager for that line-up.
+- Line-up Manager, Owner and Admin can edit/delete that line-up and manage its stint plan.
+- Drivers can create their own training sessions; creator/Owner/Admin can edit/delete them.
+- Profile security trigger added to protect role/access fields from direct client escalation.
+
+COMMS
+- Owner/Admin can create and remove normal text channels.
+- Owner/Admin can create and remove normal voice channels.
+- Existing General / Race Ops / Setups / Off Topic and base voice rooms were migrated into manageable channels.
+- Private line-up text and voice rooms stay automatic and permission scoped.
+- Polls added to Comms with single/multiple choice and optional anonymous voting.
+
+TEAM / ROLES
+- Additional role tags can be assigned without colors.
+- Public profiles display system role and additional role tags.
+
+EVENTS
+- Car number is now a fixed dropdown: 187, 095 or 113.
+
+BRANDING
+- Sidebar/login branding now uses SABIL Simracing Team.
+- Separate dark-mode and light-mode logo assets.
+- Windows/taskbar icon recropped tightly so the logo renders larger.
+
+NOTIFICATIONS
+- Added a Settings button to test desktop notifications directly.
+
+PERFORMANCE
+- Keeps the v0.7.8 reduced polling/background pause behavior.

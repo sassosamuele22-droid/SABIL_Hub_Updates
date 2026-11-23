@@ -1,0 +1,13 @@
+SABIL GR Hub v0.9.0
+
+Events
+- Added simulation filters for All, iRacing and Le Mans Ultimate.
+- Filter buttons show live event counts.
+- Event cards now show the classes running in that event.
+- Event creation/editing supports selecting multiple event classes.
+- Event detail now shows all configured classes clearly.
+- Existing events remain compatible; events without classes show "No classes specified yet."
+
+Data
+- Added public.events.classes (text[]) for event class metadata.
+- Migration is included in V0.9.0_DATABASE.sql.

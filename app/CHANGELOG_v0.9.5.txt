@@ -1,0 +1,16 @@
+SABIL GR Hub v0.9.5
+
+VOICE FIXES
+- Restored the correct room model:
+  - normal/custom voice channels (Lobby, Race Room, Strategy Room, etc.) are public to all active team members
+  - line-up voice rooms are private to assigned drivers and management
+- Fixed unreliable WebRTC audio by queueing ICE candidates until the remote SDP is ready.
+- Added automatic ICE restart when a peer connection fails.
+- Remote audio explicitly starts after a track is attached.
+- Microphone capture now requests echo cancellation, noise suppression and automatic gain control.
+- Per-member volume remains adjustable from 0% to 200%.
+- Per-member volume is now persisted by user account in local storage and survives reconnects/app restarts.
+- Existing active-speaker green ring remains enabled.
+- Existing ghost-audio cleanup remains enabled.
+
+No database migration required.

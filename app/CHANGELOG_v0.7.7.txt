@@ -1,0 +1,5 @@
+SABIL GR Hub v0.7.7
+
+- Moderation history: every record can now be permanently deleted by Owner/Admin.
+- Active timeout/kick effects are cleared automatically when their record is deleted.
+- Fixed missing UPDATE/DELETE privileges for moderation actions in Supabase.

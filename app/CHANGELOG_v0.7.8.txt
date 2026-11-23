@@ -1,0 +1,12 @@
+SABIL GR Hub v0.7.8
+- Presentation cleanup and larger sidebar logo
+- New transparent SABIL Simracing app icon
+- Notifications dropdown
+- Clickable attendance status cards
+- Collapsible Admin Log and Team Cars
+- Chat send reliability fix
+- Clickable profiles with avatars across team/event/chat areas
+- Comms focus modes restored
+- Training save reliability + backend permission stabilization
+- Light / dark appearance setting
+- Reduced background polling for lower CPU/GPU overhead

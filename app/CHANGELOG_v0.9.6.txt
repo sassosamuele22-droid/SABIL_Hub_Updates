@@ -1,0 +1,25 @@
+SABIL GR Hub v0.9.6
+
+ANNOUNCEMENTS
+- Latest Announcement turns white with a blue unread-style dot while an app update is available/downloading/downloaded.
+- After the installed version is current again, the automatic update highlight returns to the normal card style.
+- Manual announcements can now be marked/unmarked as new/important by management.
+- The announcement composer includes a 'Mark as new / important' option.
+- Marked manual announcements use the same white highlight + blue dot.
+- Announcement highlight is stored in Supabase so every team member sees the same state.
+
+STREAMS
+- Existing screen share functionality remains unchanged.
+- Streams now appear as compact preview cards first.
+- Preview shows a still-like frame instead of immediately opening a large live player.
+- Click the preview or 'Watch' to view the stream live in the normal/small mode.
+- 'Big' opens Discord-style big-picture mode.
+- Double-click also opens big-picture mode.
+- Stream audio is muted while only in preview mode.
+
+BACKEND
+- Added support for the announcements.highlighted field.
+
+Supabase migration required:
+- public.announcements.highlighted boolean NOT NULL DEFAULT false
+This migration has already been applied to the connected SABIL Hub project.

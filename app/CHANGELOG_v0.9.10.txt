@@ -1,0 +1,9 @@
+SABIL GR Hub Desktop v0.9.10
+
+- Cross-device cloud sync fix for Mobile <-> Windows.
+- Desktop now watches shared Supabase data and refreshes when another client changes it.
+- Immediate catch-up refresh when the app regains focus.
+- 60 second fallback refresh protects against missed realtime events.
+- Current event detail is rebound to freshly synced event/line-up/stint data.
+- Stint planner permissions now match backend/mobile: assigned drivers only.
+- Shared sync covers events, line-ups, stints, attendance, trainings, polls, announcements, results, rules, files, cars, members and notifications.

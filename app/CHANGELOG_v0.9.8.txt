@@ -1,0 +1,16 @@
+SABIL GR Hub v0.9.8
+
+DESKTOP COMMUNICATIONS CLEANUP
+- Removed the Chat page from the desktop app.
+- Removed direct messages from the desktop app.
+- Removed the Voice page, calls and screen-share UI from the desktop app.
+- Removed Line-up Comms buttons from event line-ups.
+- Removed Chat/Voice startup-page options and voice/call/screen-share settings.
+- Added a dedicated Updates page for Announcements and Polls.
+- Announcements keep the existing highlight / update-notification behavior.
+- Polls remain available and now use the general team poll channel.
+- Chat, DMs, calls, voice and screen sharing are explicitly handled through Discord.
+- Desktop runtime no longer connects the communications socket, so voice/chat background logic is not started.
+- Legacy saved startup pages Chat / Voice / Comms automatically redirect to Updates.
+
+All event, result, team, file, training, rules, profile and updater features remain unchanged.

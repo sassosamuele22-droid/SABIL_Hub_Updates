@@ -1,0 +1,7 @@
+SABIL GR Hub v0.7.6
+
+- Reworked Comms into a Discord-style workspace.
+- Announcements and Voice Channels are collapsible in the left sidebar.
+- Team/line-up chats and Direct Messages are grouped on the right.
+- Live streams moved to a separate collapsible section below and render in a two-column grid.
+- Fixed Supabase table grants for the Stint & Session Planner and Direct Messages.

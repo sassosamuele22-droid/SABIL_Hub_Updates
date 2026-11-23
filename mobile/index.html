@@ -25,10 +25,24 @@
         <button class="primary-btn" type="submit" data-i18n="sign_in">Sign in</button>
         <p id="loginError" class="error-text hidden"></p>
       </form>
+      <div class="login-create-area"><button id="showRecovery" class="login-link-btn" type="button">Passwort vergessen? / Forgot password</button></div>
       <div id="loginCreateArea" class="login-create-area">
         <span data-i18n="no_account">No account yet?</span>
         <button id="showSignup" class="login-link-btn" type="button" data-i18n="create_account">Create new account</button>
       </div>
+      <form id="recoveryForm" class="stack gap-lg hidden">
+        <h3>Reset password</h3><p class="subtle">We will send a secure reset link to your email address.</p>
+        <label class="field"><span>Email</span><input id="recoveryEmail" type="email" required autocomplete="email"></label>
+        <button class="primary-btn" type="submit">Send reset link</button>
+        <button class="secondary-btn" type="button" id="cancelRecovery">Back to sign in</button>
+        <p id="recoveryMessage" class="login-message"></p>
+      </form>
+      <form id="newPasswordForm" class="stack gap-lg hidden">
+        <h3>Choose new password</h3><label class="field"><span>New password</span><input id="recoveryNew1" type="password" minlength="8" required autocomplete="new-password"></label>
+        <label class="field"><span>Repeat password</span><input id="recoveryNew2" type="password" minlength="8" required autocomplete="new-password"></label>
+        <button class="primary-btn" type="submit">Save new password</button>
+        <p id="newPasswordMessage" class="login-message"></p>
+      </form>
       <form id="signupForm" class="stack gap-lg hidden">
         <div class="signup-heading"><strong data-i18n="create_account">Create new account</strong><small data-i18n="team_members_only">For SABIL GR team members only.</small></div>
         <label class="field"><span data-i18n="full_name">Full name</span><input id="signupName" type="text" autocomplete="name" required /></label>
@@ -42,6 +56,12 @@
     </section>
   </main>
 
+  <main id="approvalView" class="login-shell hidden"><section class="login-card" style="max-width:440px;margin:auto">
+    <img class="login-logo" src="./logo-white.png" alt="SABIL GR">
+    <h2>Account wartet auf Freigabe</h2><p>Dein Account wurde erstellt. Der Team-Owner muss ihn zuerst freigeben, bevor Teamdaten sichtbar sind.</p>
+    <button class="primary-btn" id="approvalRefresh">Freigabe erneut prüfen</button>
+    <button class="secondary-btn" id="approvalLogout">Abmelden</button>
+  </section></main>
   <div id="appView" class="app-shell hidden">
     <header class="topbar">
       <img class="top-logo" src="./logo-white.png" alt="SABIL GR" />
@@ -67,7 +87,7 @@
       </div>
 
       <div class="page hidden" data-page="events">
-        <div class="page-heading row-between"><div><p class="eyebrow" data-i18n="race_calendar">Race calendar</p><h2 data-i18n="events">Events</h2></div><div class="row gap-sm"><button id="calendarButton" class="chip-btn">▦ <span data-i18n="calendar">Calendar</span></button><button id="newEventButton" class="chip-btn edit-only hidden">+ Event</button></div></div>
+        <div class="page-heading row-between"><div><p class="eyebrow" data-i18n="race_calendar">Race calendar</p><h2 data-i18n="events">Events</h2></div><div class="row gap-sm"><button id="calendarButton" class="chip-btn">▦ <span data-i18n="calendar">Calendar</span></button><button id="newEventButton" class="chip-btn hidden">+ Event</button></div></div>
         <div id="eventFilters" class="sim-filters"></div>
         <div id="eventsCalendar" class="events-calendar-list hidden"></div>
         <div id="eventsList" class="card-list"></div>
@@ -79,7 +99,7 @@
           <button id="refreshUpdates" class="chip-btn" data-i18n="refresh">Refresh</button>
         </div>
 
-        <div class="section-title"><h3 data-i18n="announcements">Announcements</h3><button id="newAnnouncement" class="chip-btn edit-only hidden">+ Announcement</button></div>
+        <div class="section-title"><h3 data-i18n="announcements">Announcements</h3><button id="newAnnouncement" class="chip-btn hidden">+ Announcement</button></div>
         <div id="announcementsList" class="card-list"></div>
 
         <div class="section-title"><h3 data-i18n="polls">Polls</h3><button id="newPollButton" class="chip-btn">+ Poll</button></div>

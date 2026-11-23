@@ -1,0 +1,8 @@
+SABIL GR Hub v0.8.5
+
+- Split Chat and Voice into separate main navigation pages.
+- Added private 1:1 voice calls from Direct Messages.
+- Added distinct incoming-call ringtone and optional ringtone setting.
+- Reworked notification chime to sound fuller and more prominent.
+- Private calls use the existing cross-PC Supabase Realtime/WebRTC voice transport.
+- Incoming calls show an in-app call card plus a Windows notification; they continue while the app is hidden in the tray.

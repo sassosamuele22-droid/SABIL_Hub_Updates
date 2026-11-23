@@ -1,0 +1,25 @@
+SABIL GR Hub v0.8.10 — Stability & Performance
+
+No features were removed. This release focuses on making the existing Windows app faster and more reliable.
+
+Fixed / improved:
+- Window/tray shutdown path hardened; Quit now has a forced fallback if a renderer is stuck.
+- Added explicit Hide action to the tray.
+- Electron main process stays at normal priority so window controls remain responsive; only child/helper processes use lower priority.
+- Backend startup is awaited before the window opens, avoiding blank/half-loaded starts.
+- Session verification is coalesced and cached briefly, preventing 10+ duplicate auth/profile checks during one refresh.
+- Supabase clients are reused instead of recreated for every local API request.
+- Concurrent token refreshes are coalesced in the renderer, avoiding refresh-token races.
+- Duplicate Comms initialization removed.
+- Background polling is non-overlapping and much less aggressive; Socket.IO still handles live chat/DM/notification events.
+- Result stats are calculated from already-loaded results instead of doing a second duplicate stats fetch.
+- Event/result/team data mapping optimized to avoid repeated O(n²) scans.
+- Signed image URLs are generated in parallel where safe.
+- Secondary Owner/Admin role is respected for private text/voice access.
+- File deletion now explicitly checks uploader/Owner/Admin permissions server-side.
+- Added backend health endpoint and corrected backend version reporting.
+- Added database indexes and enabled Supabase Realtime publication for team tables.
+- Static checks: no duplicate DOM IDs, no missing inline handler functions, JS syntax passes.
+
+Cloud database performance migration was already applied to the shared SABIL GR Supabase project on 2026-09-25.
+- Voice watcher subscriptions now wait until Supabase Realtime is ready and stale watchers are cleaned up.

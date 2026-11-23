@@ -1,0 +1,36 @@
+SABIL GR Hub v0.9.4 — consolidated build
+
+Includes all fixes and features from the previously prepared v0.9.2/v0.9.3 builds, consolidated into the official v0.9.4 build.
+
+VOICE
+- Your own profile now appears correctly in the voice room after joining.
+- Active speaker gets a Discord-style green ring around the profile image/avatar.
+- Per-user voice volume can now be adjusted from 0% to 200%.
+- Remote voice audio is hard-stopped when you leave a call/voice room.
+- Late WebRTC signals/tracks are ignored when you are not inside a voice room.
+- Remote audio gain graphs are cleaned up when users leave or the local user disconnects.
+- Private line-up voice permissions remain unchanged.
+
+FILES
+- Team Files supports selecting and uploading multiple files at once.
+
+CHAT
+- Message translation repaired with a more robust translation request.
+- Translation now uses a Google endpoint first and MyMemory as a fallback.
+- Translation errors are surfaced more clearly in the message UI.
+
+EVENTS / RESULTS
+- Includes the v0.9.1 event/result filter and LMU track updates already in the current base.
+
+No database migration required.
+
+
+FINAL FIX PASS
+- Repetitive private line-up chat access toasts suppressed.
+- Line-up voice rooms are now available to every authenticated team member.
+- Own stale presence is removed immediately after leaving voice, both client-side and server-side.
+- Folder upload added to Team Files (including nested files).
+- Folder paths are preserved in displayed file names.
+- Team file deletion is now idempotent and optimistic, so stale entries do not trap the UI with repeated “File not found” toasts.
+- Storage deletion failures no longer prevent the database record from being removed.
+- Existing multi-file upload, active-speaker ring, 200% voice volume, translation fallback and no-ghost-audio fixes retained.
