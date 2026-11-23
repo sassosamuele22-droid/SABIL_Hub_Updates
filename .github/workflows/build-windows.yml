@@ -3,13 +3,15 @@ name: Build Windows Hub Installer
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
     paths:
       - 'app/**'
       - '.github/workflows/build-windows.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows-installer:
@@ -20,6 +22,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Read package version
+        id: version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./app/package.json').version"
+          "value=$version" >> $env:GITHUB_OUTPUT
+      - name: Validate release tag against version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne "v${{ steps.version.outputs.value }}") {
+            throw "Release tag $env:GITHUB_REF_NAME does not match package version ${{ steps.version.outputs.value }}"
+          }
       - name: Install desktop dependencies
         working-directory: app
         run: npm install --no-audit --no-fund
@@ -29,10 +44,27 @@ jobs:
       - name: Upload installer and update metadata
         uses: actions/upload-artifact@v4
         with:
-          name: SABIL-GR-Hub-Setup-0.9.11
+          name: SABIL-GR-Hub-Setup-${{ steps.version.outputs.value }}
           path: |
-            app/dist/SABIL-GR-Hub-Setup-0.9.11.exe
-            app/dist/SABIL-GR-Hub-Setup-0.9.11.exe.blockmap
+            app/dist/SABIL-GR-Hub-Setup-${{ steps.version.outputs.value }}.exe
+            app/dist/SABIL-GR-Hub-Setup-${{ steps.version.outputs.value }}.exe.blockmap
             app/dist/latest.yml
           if-no-files-found: error
           retention-days: 30
+      - name: Publish GitHub release for tagged version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.version.outputs.value }}"
+          $exe = "app/dist/SABIL-GR-Hub-Setup-$version.exe"
+          gh release create "v$version" `
+            "$exe" `
+            "$exe.blockmap" `
+            "app/dist/latest.yml" `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --title "SABIL GR Hub v$version" `
+            --notes "Windows v$version: fixes startup errors affecting navigation, calendar and file manager." `
+            --latest `
+            --verify-tag

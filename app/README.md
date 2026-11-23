@@ -1,6 +1,6 @@
-# SABIL GR Hub Windows v0.9.11
+# SABIL GR Hub Windows v0.9.12
 
-Desktop source (Electron + Express) for shared SABIL GR Hub. Release procedure and test scope: `RELEASE_v0.9.11_README.txt`. Run `SUPABASE_V018_SCHEMA.sql` once before deploying either client.
+Desktop source (Electron + Express) for shared SABIL GR Hub. Release procedure: see `PUBLISH_UPDATE.bat`. Existing Supabase v0.18 migration is already applied; do not rerun it.
 
 Improvements: owner account approval, multiple roles, iRacing coach permissions, shared file folders and uploads, true month/week/day events+training calendar, races with duration and official results after finish, realtime sync, and important-only notifications.
 

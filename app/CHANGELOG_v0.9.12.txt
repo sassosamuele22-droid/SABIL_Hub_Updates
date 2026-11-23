@@ -1,0 +1,5 @@
+SABIL GR Hub v0.9.12
+
+- Fix desktop startup error: dmInput was referenced as an undeclared variable even when direct messaging UI was absent.
+- The resulting script termination prevented FILE_CATEGORY_NAMES and desktopCalendarDate from initializing, breaking Files and Calendar.
+- Resolve DM input through getElementById with a safe null check. No database changes.
