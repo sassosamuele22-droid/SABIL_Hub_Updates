@@ -1,0 +1,58 @@
+SABIL GR Hub v0.8.10 — Stability Audit
+Date: 2026-09-25
+Base reviewed: v0.8.9
+
+SCOPE
+- Electron main process / tray / updater startup
+- Local Express API and Supabase client usage
+- Auth/session refresh flow
+- Events, entries, results, team, files, training, chat, DMs, polls, notifications
+- Voice/signalling watcher lifecycle and secondary-role access
+- Main renderer HTML/JS static integrity
+- Shared Supabase schema/index/realtime configuration
+
+FIXED
+1. Electron main process was being lowered to BELOW_NORMAL priority together with child processes. This could make tray/window controls lag under simulator CPU load. Main now stays normal priority; helpers/renderers are lowered only.
+2. Quit path hardened. Tray now has Open, Hide and Quit. Quit uses a forced app.exit fallback if a renderer/backend refuses to stop.
+3. Window/backend startup race removed. Electron waits for the local server to be listening before opening the UI.
+4. Initial refresh previously launched many API calls, and every one independently called Supabase getUser + profile lookup. v0.8.10 coalesces concurrent auth verification and reuses Supabase clients.
+5. Renderer token refresh race fixed. Concurrent 401s now share one refresh-session request instead of rotating the refresh token multiple times.
+6. Duplicate Comms initialization removed and initialization made idempotent.
+7. Background polling now prevents overlapping requests and runs less aggressively. Chat/DM/notification Socket.IO events remain live.
+8. Duplicate /api/stats request removed from normal UI refresh; KPI stats are calculated from already-loaded official results.
+9. Event/result/team/poll mapping optimized to avoid repeated nested filter scans.
+10. Signed event/result/team image URLs are generated concurrently where safe.
+11. Secondary Owner/Admin role is now respected by private text/voice access checks.
+12. File deletion now checks uploader/Owner/Admin explicitly at the local API layer as well as through RLS.
+13. Voice watcher lifecycle improved: watcher subscriptions wait until ready and stale watchers are removed.
+14. Notification inserts now trigger a live Socket.IO notification refresh event.
+15. Backend health endpoint and correct v0.8.10 version logging added.
+16. Shared Supabase DB received missing query/FK indexes and Realtime publication for Hub tables.
+
+STATIC CHECKS PASSED
+- electron-main.cjs: node --check PASS
+- preload.cjs: node --check PASS
+- server.js: node --check PASS
+- main inline renderer JavaScript: node --check PASS
+- duplicate DOM IDs: none
+- missing inline event-handler functions: none
+- duplicate function declarations: none
+- duplicate Socket.IO listener names in renderer: none
+- duplicate Express method/path routes: none
+- core packaged assets present: electron-main.cjs, preload.cjs, server.js, sabil.ico, sabil-icon.png
+
+SUPABASE CHECKS
+- RLS is enabled on all Hub public tables checked.
+- Missing foreign-key index advisor findings reduced to zero after the v0.8.10 migration.
+- Realtime publication now includes all Hub team tables.
+- Existing SECURITY DEFINER warnings are intentional helper/RPC functions guarded by auth.uid()/Owner checks; semantics were not changed in this stability release.
+
+KNOWN ARCHITECTURE LIMITS (not regressions)
+- Voice/WebRTC is peer-to-peer with public STUN and no TURN relay. On restrictive corporate/mobile NATs, some peer connections can still fail until a TURN service is added.
+- Windows builds are unsigned, so SmartScreen can still warn on a fresh installer.
+- Translation uses an external Google translation endpoint and therefore depends on that external service.
+
+BUILD/PUBLISH
+- Run BUILD_INSTALLER.bat.
+- It recreates UPDATE_UPLOAD automatically and places latest.yml, the installer EXE and blockmap there.
+- Run PUBLISH_UPDATE.bat to publish GitHub Release v0.8.10.

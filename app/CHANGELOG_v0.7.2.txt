@@ -1,0 +1,12 @@
+SABIL GR Hub v0.7.2
+
+- Line-ups now require their own race date and start time.
+- Official results can store Split X of Y.
+- Private line-up comms now include both text and voice.
+- Line-up voice rooms are access-controlled server-side.
+- Member punishments require a reason and can be revoked later.
+- Kick removes Hub access but keeps historical team data; access can be restored.
+- Team file uploads are simplified: all uploaded files are team-private.
+- Training save now validates input and shows useful errors instead of silently failing.
+- Rules are grouped into collapsible categories and the default rulebook is expanded.
+- Rules editor now supports rule categories.

@@ -1,0 +1,7 @@
+SABIL GR Hub v0.8.7
+
+- Added Discord-style voice join and leave sounds.
+- Added a separate Voice join / leave sounds setting.
+- Race performance mode now reduces screen-share load to 24 FPS / 5 Mbps and disables the local screen preview.
+- Applies below-normal process priority to Electron child processes where Windows permits it.
+- Rebuilt app/taskbar icon with a transparent background.

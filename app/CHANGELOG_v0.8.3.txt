@@ -1,0 +1,5 @@
+SABIL GR Hub v0.8.3
+- Fixed initModalDismiss startup ReferenceError.
+- Restored non-blocking modal dismissal.
+- Desktop notification test now uses Electron native Windows notifications via IPC.
+- In-app notification delivery also uses the native Electron notification bridge when available.

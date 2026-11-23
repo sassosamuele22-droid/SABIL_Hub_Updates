@@ -1,0 +1,11 @@
+SABIL GR Hub v0.8.6
+
+- Rebranded the desktop app from SABIL Hub to SABIL GR Hub.
+- Replaced dark/light mode branding with the new SABIL GR Simracing Team logos.
+- Updated Windows app icon and installer branding.
+- Reworked the visual identity around the new black/white team colours.
+- Added Race performance mode (enabled by default).
+- Race performance mode reduces nonessential background polling and UI effects.
+- Heavy team/result refreshes are skipped while the app is hidden and reduced while driving.
+- Electron background throttling is explicitly enabled and the local app/backend process uses below-normal priority.
+- Chat, voice, calls and notifications remain available while Race performance mode is enabled.

@@ -1,0 +1,18 @@
+SABIL GR HUB · SHARED RELEASE
+Mobile PWA v0.18 | Windows Desktop v0.9.11
+
+1. Source packages, not prebuilt installers. Both use the same Supabase project.
+2. Before replacing either client, back up your Supabase database and run SUPABASE_V018_SCHEMA.sql ONCE via Supabase SQL Editor. The migration is bundled with both packages; do not run twice. This migration:
+   - grants owner approval over newly registered users, preserves existing team members as approved;
+   - installs role permissions, shared file folders and important-only notification rules;
+   - removes existing notification history (explicitly requested);
+   - enables pg_cron to delete expired training sessions and finish races every five minutes.
+3. NOTE: The migration makes a REAL change to your production backend. Existing unmodified clients may lose access to some actions or see read-only state until both new versions are installed. Deploy versions together.
+4. Deploy mobile/ contents to repository mobile/ and let Vercel deploy. Confirm installed iOS/Android PWA reloads the new service worker.
+5. For Windows run app/BUILD_INSTALLER.bat on Windows. It installs npm dependencies and produces dist/SABIL-GR-Hub-Setup-0.9.11.exe and GitHub update metadata.
+6. On both versions: log in as OWNER, approve test account, assign LMU/iRacing/Coach/Rookie roles and verify restrictions with separate test accounts.
+7. Verify event creation (owner, admin, iRacing coach), race calendar month/week/day, attendance and lineup restrictions, shared files & empty folders, and one official result after race finished.
+8. Verify notification delivery with a real installed iPhone/Android PWA and granted OS permissions, while the app is closed. Push delivery cannot be confirmed by static code validation.
+9. The migration is intentionally not auto-run by these client packages. Back up first; apply at a controlled release window.
+
+After package changes were prepared, JS syntax and ZIP integrity were tested. Runtime end-to-end tests against an installed PWA/Windows build were not performed.

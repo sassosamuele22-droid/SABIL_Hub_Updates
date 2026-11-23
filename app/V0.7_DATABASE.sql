@@ -1,0 +1,4 @@
+-- Already applied to the SABIL GR Hub Supabase project by ChatGPT on 2026-09-15.
+-- Reference only. Do not rerun manually unless setting up a new project.
+-- Adds profiles.active, profiles.suspended_until, event_entries.created_by,
+-- team_rules, moderation_actions and updated RLS policies for v0.7 governance.

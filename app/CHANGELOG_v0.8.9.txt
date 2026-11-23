@@ -1,0 +1,7 @@
+SABIL GR Hub v0.8.9
+
+- Reworked Chat layout to use horizontal space more efficiently.
+- Moved Race Performance Mode to a Home-page toggle button.
+- Replaced Chromium's bright scrollbars/gutters with theme-matched scrollbars.
+- Fixed reopening the app after closing it to the tray: second launch, tray click and app activation now restore/show the existing window.
+- Rebuilt the Windows/app icon as a transparent logo-only icon with no black background.

@@ -1,0 +1,9 @@
+SABIL GR Hub v0.8.8
+- New app icon from the compact SABIL GR Simracing Team logo; in-app sidebar logo remains unchanged.
+- Activity on Home is now collapsible.
+- Voice page is fixed to Balanced; focus buttons removed.
+- Settings layout reorganized to use both columns more efficiently.
+- Screen-share start/stop sounds added, including remote streams when tracks start/end.
+- LMU Driver and iRacing Driver tags can be assigned by the Owner.
+- @lmu and @iracing mention groups added.
+- Owner Edit Mode added in Settings. Normal owner view hides structural edit/delete controls; enable editing to expose them.

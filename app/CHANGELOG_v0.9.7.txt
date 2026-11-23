@@ -1,0 +1,24 @@
+SABIL GR Hub v0.9.7
+
+STREAM VIEWER
+- Replaced the old pseudo big-picture overlay with native full-screen viewing.
+- Stream control is now a normal expand/shrink symbol (⛶ / ↙), with no “Big” button text.
+- Full screen occupies the full available display area and keeps the video aspect ratio.
+- Preview / Watch behavior from v0.9.6 remains.
+
+EVENTS
+- Event dates now use European DD.MM.YYYY formatting.
+- Event card layout reorganized: name + date at top, then track, then simulation.
+- Championship/series moved to the bottom-right of the event card.
+- Event cards are always sorted chronologically by date, including inside simulation filters.
+- Added a Calendar button at the top-right of Events & Results.
+- Calendar view is a chronological list showing only date, event name and simulation.
+- Clicking a calendar row opens the normal event detail/line-up registration view.
+- Home next-event selection also follows chronological event order.
+- Event detail metadata and line-up/schedule dates use European formatting where applicable.
+
+UI DENSITY
+- Compact density is now noticeably denser: smaller spacing, controls, cards, tables, headings and navigation.
+- Comfortable density remains the existing default layout.
+
+No database migration required.

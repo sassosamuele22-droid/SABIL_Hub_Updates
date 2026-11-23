@@ -1,0 +1,12 @@
+SABIL GR Hub v0.7.5
+
+- Removed SABIL Assistant from the app.
+- Added Stint & Session Planner inside every line-up.
+- Plan Practice, Qualifying, Race Start and race stints with date, exact start time, duration, driver and notes.
+- Added clear event attendance board: Confirmed / Unsure / Can't race / No reply.
+- Added private 1:1 Direct Messages under Comms.
+- Added racing-specific mentions: @drivers, @management, @admins, @lineup, @event and direct member mentions.
+- Mention notifications are generated automatically.
+- Global mentions are restricted to management; @lineup is scoped to line-up chats.
+- Existing private line-up text and voice channels remain.
+- GitHub auto-updater remains configured.

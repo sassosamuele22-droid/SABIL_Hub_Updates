@@ -1,0 +1,7 @@
+SABIL GR Hub v0.9.1
+
+- Added Le Mans Ultimate tracks: Long Beach and Road Atlanta.
+- Fixed Events simulation filter selected state so the active filter is clearly visible in dark and light mode.
+- Added matching All / iRacing / Le Mans Ultimate filter buttons with live counts to Official Results.
+- Result filtering does not change the Home page Recent Official Results widget.
+- No database migration required.

@@ -1,0 +1,11 @@
+SABIL GR Hub v0.9.9
+
+Files UX update
+- Team Files now opens as folders/collections instead of showing every uploaded file at top level.
+- Existing loose files are grouped into a virtual "Loose files" folder.
+- Multi-file uploads automatically get a batch folder if no collection name is entered.
+- Full folder uploads preserve the selected folder/subfolder structure.
+- Added Folder / Collection name to the upload dialog.
+- Added in-app file preview with a clear Back to files / Close control.
+- Download now uses a Windows Save As dialog so the user chooses the destination.
+- Existing file upload and delete permissions remain unchanged.

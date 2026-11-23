@@ -1,0 +1,7 @@
+SABIL GR Hub v0.8.11 — Member Refresh
+
+- Added a visible “Refresh members” button to the Team page.
+- Opening the Team page now checks for newly registered members automatically.
+- Member refresh updates rankings/cards, Home member count, DMs, mentions, voice rosters and open event attendance views without restarting the app.
+- Added refresh status + timestamp and loading/error states.
+- Keeps all v0.8.10 stability/performance fixes unchanged.

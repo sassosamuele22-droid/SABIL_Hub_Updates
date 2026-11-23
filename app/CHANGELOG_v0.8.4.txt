@@ -1,0 +1,9 @@
+SABIL GR Hub v0.8.4
+
+- Password visibility eye on sign-in.
+- Text chats and voice chats are separated into their own left-side sections.
+- Voice presence/signalling synchronization improved across PCs.
+- Team statistics refresh live across clients.
+- Optional SABIL notification sound added.
+- Notifications continue while the window is hidden in the system tray.
+- Closing the window keeps SABIL GR Hub running in the tray; use the tray menu to quit fully.
