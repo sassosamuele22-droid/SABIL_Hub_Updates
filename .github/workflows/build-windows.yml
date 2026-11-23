@@ -1,0 +1,38 @@
+name: Build Windows Hub Installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install desktop dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+      - name: Build NSIS installer
+        working-directory: app
+        run: npm run build:installer
+      - name: Upload installer and update metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: SABIL-GR-Hub-Setup-0.9.11
+          path: |
+            app/dist/SABIL-GR-Hub-Setup-0.9.11.exe
+            app/dist/SABIL-GR-Hub-Setup-0.9.11.exe.blockmap
+            app/dist/latest.yml
+          if-no-files-found: error
+          retention-days: 30
