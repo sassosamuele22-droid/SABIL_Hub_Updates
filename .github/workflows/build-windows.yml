@@ -23,9 +23,9 @@ jobs:
       - name: Install desktop dependencies
         working-directory: app
         run: npm install --no-audit --no-fund
-      - name: Build NSIS installer
+      - name: Build NSIS installer (no automatic publishing)
         working-directory: app
-        run: npm run build:installer
+        run: npm run build:installer -- --publish never
       - name: Upload installer and update metadata
         uses: actions/upload-artifact@v4
         with:
