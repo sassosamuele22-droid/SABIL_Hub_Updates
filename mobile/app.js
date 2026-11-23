@@ -7,7 +7,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 });
 
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const state={session:null,profile:null,profiles:[],currentPage:'home',subpageKind:null,subscriptions:[],deferredInstall:null,ownerEdit:false,events:[],eventFilter:'all',eventCalendarOpen:false,currentEvent:null,currentEntries:[],currentAttendance:[],teamCars:[],results:[],resultFilter:'all',announcements:[],files:[],fileFilter:'all',avatarCache:new Map(),pushSubscription:null,pushSupported:false};
+const state={session:null,profile:null,profiles:[],currentPage:'home',subpageKind:null,subscriptions:[],deferredInstall:null,ownerEdit:false,events:[],eventFilter:'all',eventCalendarOpen:false,currentEvent:null,currentEntries:[],currentAttendance:[],teamCars:[],results:[],resultFilter:'all',announcements:[],files:[],fileFilter:'all',avatarCache:new Map(),pushSubscription:null,pushSupported:false,calendarDate:new Date().toISOString().slice(0,10),calendarView:'month',calendarTraining:[],fileCategory:'setups',filePath:'',folders:[]};
 
 const safe=(v='')=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const initials=(n='?')=>n.trim().split(/\s+/).slice(0,2).map(x=>x[0]?.toUpperCase()).join('')||'?';
@@ -22,6 +22,11 @@ const isOwner=()=>effectiveRole(state.profile)==='owner';
 const isManagement=()=>['owner','admin'].includes(String(effectiveRole(state.profile)||'').toLowerCase());
 const normTag=v=>String(v||'').toLowerCase().replace(/[\s-]+/g,'_');
 const hasTag=(p,t)=>Array.isArray(p?.role_tags)&&p.role_tags.some(x=>normTag(x)===normTag(t));
+const canUseSim=sim=>isManagement()||(simKey(sim)==='iracing'&&hasTag(state.profile,'iracing_driver'))||(simKey(sim)==='lmu'&&hasTag(state.profile,'lmu_driver'));
+const isCoach=()=>hasTag(state.profile,'coach');
+const canEditEvent=event=>isOwner()&&state.ownerEdit||isManagement()||isCoach()&&(!event||simKey(event.simulation)==='iracing');
+const canEditAnnouncement=()=>isManagement()||isCoach();
+const isApproved=()=>state.profile?.approval_status==='approved'&&state.profile?.active!==false;
 const simKey=v=>{const x=String(v||'').trim().toLowerCase();if(x.includes('iracing'))return 'iracing';if(x==='lmu'||x.includes('le mans'))return 'lmu';return 'other'};
 const simMatches=(row,filter)=>filter==='all'||simKey(row?.simulation)===filter;
 const simCount=(rows,filter)=>filter==='all'?rows.length:rows.filter(r=>simMatches(r,filter)).length;
@@ -77,8 +82,8 @@ async function disablePushNotifications(){try{const sub=await getCurrentPushSubs
 function pushStatusText(){if(!pushSupported())return'Not supported on this browser/device';if(Notification.permission==='denied')return'Blocked in browser / system settings';if(state.pushSubscription)return'Enabled · can arrive while the Hub is closed';if(Notification.permission==='granted')return'Allowed · tap Enable to reconnect this device';return'Off · enable lock-screen notifications'}
 function renderPushPrompt(){const el=$('#homePushPrompt');if(!el)return;if(!state.session||!pushSupported()||state.pushSubscription||Notification.permission==='denied'){el.classList.add('hidden');el.innerHTML='';return}el.classList.remove('hidden');el.innerHTML=`<div><strong>Enable phone notifications</strong><p>Get SABIL GR alerts for new events, line-ups, trainings, announcements and polls even when the Hub is closed.</p></div><button id="homeEnablePush" class="chip-btn primary">Enable</button>`;$('#homeEnablePush').onclick=enablePushNotifications}
 async function handlePushOpen(){const u=new URL(location.href),page=u.searchParams.get('pushPage'),id=u.searchParams.get('pushId'),notificationId=u.searchParams.get('notificationId');if(!page&&!notificationId)return;if(notificationId)await supabase.from('notifications').update({is_read:true}).eq('id',notificationId).eq('user_id',state.session?.user?.id);if(page==='event'&&id)await showEventDetail(id);else if(page==='training')nav('training');else if(page==='updates')nav('updates');else if(page==='results')await showSubpage('results');else nav('home');u.searchParams.delete('pushPage');u.searchParams.delete('pushId');u.searchParams.delete('notificationId');history.replaceState(null,'',u.pathname+(u.search||'')+u.hash)}
-const canManageLineup=en=>!!en&&(isManagement()||en.created_by===state.session?.user?.id);
-const canManagePlanner=en=>!!en&&!!state.session?.user?.id&&Array.isArray(en.driverIds)&&en.driverIds.includes(state.session?.user?.id);
+const canManageLineup=en=>!!en&&canUseSim(state.currentEvent?.simulation)&&(isManagement()||en.created_by===state.session?.user?.id);
+const canManagePlanner=en=>!!en&&canUseSim(state.currentEvent?.simulation)&&!!state.session?.user?.id&&Array.isArray(en.driverIds)&&en.driverIds.includes(state.session?.user?.id);
 const scheduleLabel=x=>{
   const t=String(x?.item_type||x?.type||'').toLowerCase();
   if(t==='qualifying')return'Qualifying';
@@ -150,11 +155,7 @@ const eventDateLabel=e=>{
 const eventClassBadges=classes=>(classes||[]).map(x=>`<span class="tag event-class-badge">${safe(x)}</span>`).join('');
 const fileCategoryLabel=v=>{
   const x=String(v||'').toLowerCase();
-  if(x==='setups')return'Setups';
-  if(x==='liveries')return'Liveries';
-  if(x==='docs'||x==='documents')return'Docs';
-  if(x==='media'||x==='photo & clip links'||x==='photos')return'Photo & Clip Links';
-  return String(v||'Files');
+  return ({setups:'Setups',clips:'Clips',photos:'Fotos',other:'Sonstiges',liveries:'Sonstiges',docs:'Sonstiges',media:'Sonstiges'})[x]||'Sonstiges';
 };
 const cleanObjectName=v=>String(v||'file').replace(/[^\w.\-]+/g,'_').slice(0,180)||'file';
 
@@ -192,11 +193,21 @@ function setAuthMode(mode){
   $('#loginForm').classList.toggle('hidden',signup);
   $('#loginCreateArea').classList.toggle('hidden',signup);
   $('#signupForm').classList.toggle('hidden',!signup);
+  $('#recoveryForm').classList.add('hidden');$('#newPasswordForm').classList.add('hidden');
   $('#loginError').classList.add('hidden');
   $('#signupMessage').classList.add('hidden');
 }
 $('#showSignup').onclick=()=>setAuthMode('signup');
 $('#backToLogin').onclick=()=>setAuthMode('login');
+let recoveryMode=false;
+function showPasswordRecovery(){recoveryMode=true;$('#loginView').classList.remove('hidden');$('#appView').classList.add('hidden');$('#approvalView').classList.add('hidden');$('#loginForm').classList.add('hidden');$('#loginCreateArea').classList.add('hidden');$('#signupForm').classList.add('hidden');$('#recoveryForm').classList.add('hidden');$('#newPasswordForm').classList.remove('hidden')}
+$('#showRecovery').onclick=()=>{setAuthMode('login');$('#loginForm').classList.add('hidden');$('#loginCreateArea').classList.add('hidden');$('#recoveryForm').classList.remove('hidden');$('#recoveryEmail').value=$('#email').value||''};
+$('#cancelRecovery').onclick=()=>setAuthMode('login');
+$('#recoveryForm').onsubmit=async e=>{e.preventDefault();const msg=$('#recoveryMessage');msg.textContent='Sending…';const {error}=await supabase.auth.resetPasswordForEmail($('#recoveryEmail').value.trim(),{redirectTo:location.origin+location.pathname});msg.textContent=error?error.message:'Check your email for the password reset link.'};
+$('#newPasswordForm').onsubmit=async e=>{e.preventDefault();const p=$('#recoveryNew1').value;if(p.length<8||p!==$('#recoveryNew2').value){$('#newPasswordMessage').textContent='Passwords do not match, or are too short.';return}const {error}=await supabase.auth.updateUser({password:p});$('#newPasswordMessage').textContent=error?error.message:'Password saved. Sign in with your new password.';if(!error){recoveryMode=false;await supabase.auth.signOut();setAuthMode('login')}};
+$('#approvalRefresh').onclick=async()=>{await loadProfile();if(isApproved())await safeEnterApp();else toast('Account is still awaiting approval.')};
+$('#approvalLogout').onclick=()=>supabase.auth.signOut();
+
 $('#signupForm').onsubmit=async e=>{
   e.preventDefault();
   const msg=$('#signupMessage');msg.className='login-message hidden';
@@ -209,7 +220,7 @@ $('#signupForm').onsubmit=async e=>{
   button.disabled=false;
   if(error){msg.textContent=error.message;msg.classList.remove('hidden');msg.classList.add('error-text');return}
   if(data?.session){
-    msg.textContent='Account created. Signing you in…';msg.classList.remove('hidden');msg.classList.add('success-text');
+    msg.textContent='Account created. Your team owner must approve it before you can enter.';msg.classList.remove('hidden');msg.classList.add('success-text');
     state.session=data.session;await safeEnterApp()
   }else{msg.textContent='Account created. Check your email if confirmation is required, then sign in.';msg.classList.remove('hidden');msg.classList.add('success-text');setTimeout(()=>{setAuthMode('login');$('#email').value=email},1800)}
 };
@@ -222,6 +233,7 @@ function safeEnterApp(){
     try{
       if(!state.session){const {data}=await supabase.auth.getSession();state.session=data?.session||null}
       if(!state.session){showLogin();return}
+      if(recoveryMode){showPasswordRecovery();return}
       await enterApp();
     }catch(e){
       console.error('App startup failed',e);
@@ -234,17 +246,20 @@ function safeEnterApp(){
 }
 supabase.auth.onAuthStateChange((event,s)=>{
   state.session=s;
-  if(event==='SIGNED_OUT'){showLogin();return}
-  if(s)setTimeout(()=>safeEnterApp(),0)
+  if(event==='SIGNED_OUT'){recoveryMode=false;showLogin();return}
+  if(event==='PASSWORD_RECOVERY'){showPasswordRecovery();return}
+  if(s&&!recoveryMode)setTimeout(()=>safeEnterApp(),0)
 });
 const {data:{session}}=await supabase.auth.getSession();
 state.session=session;
 if(session)await safeEnterApp();else showLogin();
 
-function showLogin(){cleanupRealtime();$('#loginView').classList.remove('hidden');$('#appView').classList.add('hidden')}
+function showLogin(){cleanupRealtime();$('#loginView').classList.remove('hidden');$('#appView').classList.add('hidden');$('#approvalView').classList.add('hidden');setAuthMode('login')}
 async function enterApp(){
-  $('#loginView').classList.add('hidden');$('#appView').classList.remove('hidden');
-  await loadProfile();await loadProfiles();
+  await loadProfile();
+  if(!isApproved()){$('#appView').classList.add('hidden');$('#loginView').classList.add('hidden');$('#approvalView').classList.remove('hidden');cleanupRealtime();return}
+  $('#approvalView').classList.add('hidden');$('#loginView').classList.add('hidden');$('#appView').classList.remove('hidden');
+  await loadProfiles();
   await Promise.allSettled([loadHome(),loadEvents(),loadAnnouncements(),loadPolls()]);
   startRealtime();
   setTimeout(async()=>{try{const sub=await Promise.race([refreshPushState(),new Promise(resolve=>setTimeout(()=>resolve(null),2500))]);if(sub)await savePushSubscription(sub)}catch(e){console.warn('push sync',e)}},250);
@@ -258,21 +273,21 @@ async function loadProfile(){
   const topAvatar=$('#avatarInitials');
   if(topAvatar)topAvatar.innerHTML=avatarSrc(state.profile)?`<img src="${safe(avatarSrc(state.profile))}" alt="" class="top-avatar-image">`:safe(initials(state.profile.full_name||state.profile.nickname));
   $('#editModeButton').classList.toggle('hidden',!isOwner());
-  applyEditMode()
+  applyEditMode();updateEventCreationButton()
 }
 async function loadProfiles(){
   const {data,error}=await supabase.from('profiles').select('*').eq('active',true).order('full_name');
   if(error){toast(error.message,'error');return}
-  state.profiles=await Promise.all((data||[]).map(hydrateAvatar))
+  state.profiles=await Promise.all((data||[]).filter(x=>x.approval_status==='approved'||isOwner()).map(hydrateAvatar))
 }
 
 function applyEditMode(){if(!isOwner())state.ownerEdit=false;document.body.classList.toggle('owner-editing',isOwner()&&state.ownerEdit);$('#editModeButton').textContent=state.ownerEdit?t('finish_edit'):t('edit')}
-$('#editModeButton').onclick=()=>{if(!isOwner())return;state.ownerEdit=!state.ownerEdit;applyEditMode();toast(state.ownerEdit?'Edit mode on':'Edit mode off')};
+$('#editModeButton').onclick=()=>{if(!isOwner())return;state.ownerEdit=!state.ownerEdit;applyEditMode();updateEventCreationButton();toast(state.ownerEdit?'Edit mode on':'Edit mode off')};
 
 function nav(page){state.currentPage=page;if(page!=='subpage')state.subpageKind=null;$$('.page').forEach(p=>p.classList.add('hidden'));$(`.page[data-page="${page}"]`)?.classList.remove('hidden');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===page));window.scrollTo(0,0);if(page==='home')loadHome();if(page==='events')loadEvents();if(page==='training')renderTraining($('#trainingPageContent'));if(page==='updates'){loadAnnouncements();loadPolls()}}
 $$('[data-nav]').forEach(b=>b.onclick=()=>nav(b.dataset.nav));$('#profileButton').onclick=()=>showSubpage('settings');$('#backMore').onclick=()=>nav('more');$$('[data-subpage]').forEach(b=>b.onclick=()=>showSubpage(b.dataset.subpage));
 
-function renderHomeProfile(){const p=state.profile||{};$('#homeProfile').innerHTML=`<div class="profile-row"><div class="profile-avatar">${avatarHtml(p)}</div><div><p class="eyebrow">Signed in</p><h3>${safe(p.full_name||p.nickname||'Team member')}</h3><p>${safe(p.nickname||'')} ${p.race_number?`#${safe(p.race_number)}`:''}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div>`;renderPushPrompt()}
+function renderHomeProfile(){const p=state.profile||{};$('#homeProfile').innerHTML=`<div class="profile-row"><div class="profile-avatar">${avatarHtml(p)}</div><div><p class="eyebrow">Signed in</p><h3>${safe(p.full_name||p.nickname||'Team member')}</h3><p>${safe(p.nickname||'')} ${p.race_number?`#${safe(p.race_number)}`:''}</p></div></div><div class="profile-tags"><span class="tag white">${safe(effectiveRole(p)||'driver')}</span>${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}${hasTag(p,'coach')?'<span class="tag">Coach</span>':''}${hasTag(p,'rookie')?'<span class="tag">Rookie</span>':''}</div>`;renderPushPrompt()}
 function renderHomeAnnouncement(){
   const box=$('#homeLatestAnnouncement');if(!box)return;
   const x=state.announcements?.[0];
@@ -299,6 +314,7 @@ async function loadEvents(){
   const {data,error}=await supabase.from('events').select('*').order('event_date',{ascending:true}).limit(200);
   if(error){state.events=[];$('#eventFilters').innerHTML='';$('#eventsList').innerHTML=empty(error.message);return}
   state.events=sortEventsByDate(data||[]);
+  if(state.eventCalendarOpen){const {data:tr}=await supabase.from('training_sessions').select('id,title,session_date,start_time,duration_minutes,simulation,track').order('session_date').limit(300);state.calendarTraining=tr||[]}
   renderEventList();
 }
 function renderEventList(){
@@ -310,10 +326,37 @@ function renderEventList(){
   filters.innerHTML=simFilters(rows,state.eventFilter,'data-event-filter');
   list.innerHTML=renderEvents(sortEventsByDate(rows.filter(e=>simMatches(e,state.eventFilter))),false);
 }
+function dateStamp(x){const d=new Date(x+'T12:00:00');return d.toISOString().slice(0,10)}
+function dayAdd(x,n){const d=new Date(x+'T12:00:00');d.setDate(d.getDate()+n);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}
+function calendarItems(date){return [...state.events.filter(x=>date>=x.event_date&&date<=(x.event_end_date||x.event_date)).map(x=>({id:x.id,type:'event',text:x.name,time:x.start_time||'',event:x})),...state.calendarTraining.filter(x=>x.session_date===date).map(x=>({id:x.id,type:'training',text:x.title,time:x.start_time||'',training:x}))].sort((a,b)=>String(a.time).localeCompare(String(b.time)))}
 function renderEventsCalendar(){
-  const box=$('#eventsCalendar'),rows=sortEventsByDate(state.events||[]);
-  box.innerHTML=rows.length?rows.map(e=>`<button class="calendar-row" data-event-id="${e.id}"><span class="calendar-date">${eventDateLabel(e)}</span><span class="calendar-name">${safe(e.name)}</span><span class="calendar-sim">${safe(e.simulation||'Simracing')}</span></button>`).join(''):empty('No events yet');
+ const box=$('#eventsCalendar'),anchor=state.calendarDate,day=new Date(anchor+'T12:00:00');
+ const monthLabel=day.toLocaleDateString(userPrefs.language==='de'?'de-CH':userPrefs.language==='it'?'it-CH':'en-GB',{month:'long',year:'numeric'});
+ let dates=[];
+ if(state.calendarView==='month'){
+   const first=anchor.slice(0,7)+'-01';const dow=(new Date(first+'T12:00:00').getDay()+6)%7;
+   const begin=dayAdd(first,-dow);for(let i=0;i<42;i++)dates.push(dayAdd(begin,i));
+ }else if(state.calendarView==='week'){
+   const begin=dayAdd(anchor,-((day.getDay()+6)%7));for(let i=0;i<7;i++)dates.push(dayAdd(begin,i));
+ }else dates=[anchor];
+ const wide=state.calendarView==='day';
+ box.innerHTML=`<div class="calendar-controls"><button class="chip-btn" data-calendar-prev>‹</button><strong>${safe(monthLabel)}</strong><button class="chip-btn" data-calendar-next>›</button><button class="chip-btn" data-calendar-today>Today</button></div>
+ <div class="sim-filters">${[['month','Month'],['week','Week'],['day','Day']].map(([k,v])=>`<button class="filter-chip ${state.calendarView===k?'active':''}" data-calendar-view="${k}">${v}</button>`).join('')}</div>
+ <div class="calendar-head-grid">${(wide?[day.toLocaleDateString()]:['Mon','Tue','Wed','Thu','Fri','Sat','Sun']).map(x=>`<span>${safe(x)}</span>`).join('')}</div>
+ <div class="calendar-month-grid ${wide?'daily':''}">${dates.map(date=>`<section class="calendar-day ${date===today()?'today':''} ${date.slice(0,7)!==anchor.slice(0,7)&&!wide?'other-month':''}">
+ <button class="calendar-day-date" data-calendar-day="${date}">${new Date(date+'T12:00:00').getDate()}</button>
+ ${calendarItems(date).map(item=>`<button class="calendar-appointment ${item.type}" ${item.type==='event'?`data-event-id="${item.id}"`:`data-calendar-training="${item.id}"`}><small>${safe(fmtTime(item.time)==='—'?'':fmtTime(item.time))}</small> ${safe(item.text)}</button>`).join('')}
+ </section>`).join('')}</div>`;
 }
+document.addEventListener('click',async e=>{
+ const p=e.target.closest('[data-calendar-prev]'),n=e.target.closest('[data-calendar-next]'),t=e.target.closest('[data-calendar-today]'),v=e.target.closest('[data-calendar-view]'),d=e.target.closest('[data-calendar-day]'),tr=e.target.closest('[data-calendar-training]');
+ if(p||n){const step=p?-1:1;if(state.calendarView==='month'){const x=new Date(state.calendarDate+'T12:00:00');x.setDate(1);x.setMonth(x.getMonth()+step);state.calendarDate=x.toISOString().slice(0,10)}else state.calendarDate=dayAdd(state.calendarDate,step*(state.calendarView==='week'?7:1));renderEventsCalendar();return}
+ if(t){state.calendarDate=today();renderEventsCalendar();return}
+ if(v){state.calendarView=v.dataset.calendarView;renderEventsCalendar();return}
+ if(d){state.calendarDate=d.dataset.calendarDay;state.calendarView='day';renderEventsCalendar();return}
+ if(tr){nav('training');return}
+});
+
 function renderEvents(events,compact=false){
   if(!events.length)return empty(compact?'No events yet':'No events for this filter');
   return sortEventsByDate(events).map(e=>`<button class="event-card event-card-v05" data-event-id="${e.id}">
@@ -331,7 +374,7 @@ function renderEvents(events,compact=false){
     </div>
   </button>`).join('');
 }
-$('#calendarButton').onclick=()=>{state.eventCalendarOpen=!state.eventCalendarOpen;renderEventList()};
+$('#calendarButton').onclick=async()=>{state.eventCalendarOpen=!state.eventCalendarOpen;if(state.eventCalendarOpen){const {data}=await supabase.from('training_sessions').select('id,title,session_date,start_time,duration_minutes,simulation,track').order('session_date').limit(300);state.calendarTraining=data||[]}renderEventList()};
 document.addEventListener('click',e=>{
   const ef=e.target.closest('[data-event-filter]');if(ef){state.eventFilter=ef.dataset.eventFilter||'all';renderEventList();return}
   const rf=e.target.closest('[data-result-filter]');if(rf){state.resultFilter=rf.dataset.resultFilter||'all';renderResultsContent($('#subpageContent'));return}
@@ -389,12 +432,12 @@ function renderEventDetail({event,entries,attendance}){
   const id=event.id,my=userId?attendance.find(x=>x.driver_id===userId)?.status||'':'';
   const counts={in:attendance.filter(x=>x.status==='in').length,unsure:attendance.filter(x=>x.status==='unsure').length,out:attendance.filter(x=>x.status==='out').length};
   const currentStatus=String(event.status||'open');
-  const ownerActions=isOwner()&&state.ownerEdit?`<div class="event-management-actions">
+  const ownerActions=canEditEvent(event)?`<div class="event-management-actions">
     <button class="chip-btn" data-event-edit="${id}">Edit event</button>
     ${currentStatus==='finished'?`<button class="chip-btn" data-event-status="open" data-event="${id}">Reopen</button>`:`<button class="chip-btn success" data-event-status="finished" data-event="${id}">Mark finished</button>`}
     <button class="chip-btn danger" data-event-delete="${id}">Delete</button>
   </div>`:'';
-  const lineupButton=currentStatus==='open'?`<button class="chip-btn primary lineup-create-btn" data-lineup-new="${id}">${t('create_lineup')}</button>`:'';
+  const lineupButton=currentStatus==='open'&&canUseSim(event.simulation)?`<button class="chip-btn primary lineup-create-btn" data-lineup-new="${id}">${t('create_lineup')}</button>`:'';
 
   $('#subpageContent').innerHTML=`
     <div class="page-heading row-between">
@@ -411,7 +454,7 @@ function renderEventDetail({event,entries,attendance}){
 
     <div class="section-title row-between"><h3>${t('attendance')}</h3><button class="link-btn" data-attendance-more="${id}">${t('more_button')}</button></div>
     <div class="attendance-grid">
-      ${[['in',`${t('confirmed')} (${counts.in})`],['unsure',`${t('unsure')} (${counts.unsure})`],['out',`${t('cant_race')} (${counts.out})`]].map(([v,l])=>`<button class="attendance-btn ${my===v?'active':''}" data-attendance="${v}" data-event="${id}">${l}</button>`).join('')}
+      ${canUseSim(event.simulation)&&currentStatus==='open'?[['in',`${t('confirmed')} (${counts.in})`],['unsure',`${t('unsure')} (${counts.unsure})`],['out',`${t('cant_race')} (${counts.out})`]].map(([v,l])=>`<button class="attendance-btn ${my===v?'active':''}" data-attendance="${v}" data-event="${id}">${l}</button>`).join(''):'<p class="subtle">Read only · your driver role cannot register for this sim, or the event is closed.</p>'}
     </div>
 
     <div class="section-title row-between"><h3>${t('entries_lineups')}</h3><span class="subtle">${entries.length}</span></div>
@@ -436,6 +479,7 @@ function renderEventDetail({event,entries,attendance}){
           ${en.iracing_team_id?`<div><small>TEAM ID</small><strong>${safe(en.iracing_team_id)}</strong></div>`:''}
         </div>
         <div class="driver-pill-list">${(en.driverIds||[]).length?en.driverIds.map(memberPill).join(''):'<span class="subtle">No drivers assigned</span>'}</div>
+        ${currentStatus==='finished'&&(en.created_by===userId||isManagement())?`<button class="chip-btn primary" data-add-lineup-result="${en.id}">+ Add official result</button>`:''}
         ${lineupAllowed?`<div class="lineup-actions"><button class="small-action" data-lineup-edit="${en.id}">Edit</button><button class="small-action danger" data-lineup-delete="${en.id}">Delete</button></div>`:''}
 
         <div class="planner-card">
@@ -468,6 +512,7 @@ function openAttendanceDetails(){
 async function openLineupEditor(eventId,entryId=null){
   const event=state.currentEvent?.id===eventId?state.currentEvent:state.events.find(x=>x.id===eventId);
   if(!event)return toast('Event not found','error');
+  if(!canUseSim(event.simulation))return toast('Your roles do not allow line-ups for this simulation','error');
   if(event.status!=='open'&&!entryId)return toast('Line-ups can only be created while the event is open','error');
 
   const entry=entryId?state.currentEntries.find(x=>x.id===entryId):null;
@@ -486,6 +531,7 @@ async function openLineupEditor(eventId,entryId=null){
     <div class="dialog-field"><label>Vehicle</label><select id="lineupVehicle">${vehicleOptions}</select></div>
     ${field('Race date','lineupDate','date',entry?.race_date||event.event_date||'')}
     ${field('Start time','lineupTime','time',String(entry?.race_time||'').slice(0,5))}
+    ${field('Race duration (minutes)','lineupDuration','number',String(entry?.race_duration_minutes||'60'))}
     <div class="dialog-field"><label>Status</label><select id="lineupStatus"><option value="draft" ${entry?.status==='draft'?'selected':''}>Draft</option><option value="ready" ${entry?.status==='ready'?'selected':''}>Ready</option><option value="confirmed" ${!entry||entry?.status==='confirmed'?'selected':''}>Confirmed</option></select></div>
     <div class="dialog-field full"><label>Drivers</label><div class="driver-check-grid">${driverChecks}</div></div>
   </div>`,[{label:entry?'Save changes':'Add entry',primary:true,run:async()=>{
@@ -501,7 +547,7 @@ async function openLineupEditor(eventId,entryId=null){
 
     const row={
       event_id:eventId,entry_name:name,car_number:$('#lineupNumber').value||null,vehicle:$('#lineupVehicle').value||null,
-      race_date:raceDate,race_time:raceTime,status:$('#lineupStatus').value||'confirmed'
+      race_date:raceDate,race_time:raceTime,race_duration_minutes:Math.max(1,Number($('#lineupDuration').value)||60),status:$('#lineupStatus').value||'confirmed'
     };
     let savedId=entry?.id||null;
     if(entry){
@@ -595,7 +641,7 @@ function deleteStint(entryId,itemId){
 }
 
 async function openEventEditor(event=null){
-  if(!isOwner()||!state.ownerEdit)return;
+  if(!canEditEvent(event))return;
   const editing=!!event;
   openDialog(editing?'Edit event':'Create event',`<div class="dialog-grid">
     ${field('Name','evName','text',event?.name||'')}
@@ -604,15 +650,17 @@ async function openEventEditor(event=null){
     ${trackField('Track','evTrack',event?.track||'')}
     ${field('Start date','evDate','date',event?.event_date||'')}
     ${field('End date','evEnd','date',event?.event_end_date||event?.event_date||'')}
+    ${field('Last race end time','evEndTime','time',String(event?.end_time||'').slice(0,5))}
     ${field('Classes (comma separated)','evClasses','text',(event?.classes||[]).join(', '))}
     <div class="dialog-field full"><label>Notes</label><textarea id="evNotes">${safe(event?.notes||'')}</textarea></div>
   </div>`,[{label:editing?'Save changes':'Create',primary:true,run:async()=>{
     const date=$('#evDate').value,endDate=$('#evEnd').value||date;
+    if(isCoach()&&!isManagement()&&$('#evSim').value!=='iRacing')return toast('Coach can manage only iRacing events','error'),false;
     if(!$('#evName').value.trim()||!date)return toast('Name and date are required','error'),false;
     if(endDate<date)return toast('End date cannot be before the start date','error'),false;
     const payload={
       name:$('#evName').value.trim(),championship:$('#evChamp').value.trim()||null,simulation:$('#evSim').value,
-      track:$('#evTrack').value.trim()||null,event_date:date,event_end_date:endDate,
+      track:$('#evTrack').value.trim()||null,event_date:date,event_end_date:endDate,end_time:$('#evEndTime').value||null,
       classes:$('#evClasses').value.split(',').map(x=>x.trim()).filter(Boolean),notes:$('#evNotes').value.trim()||null,
       team_car:null,start_time:null
     };
@@ -633,13 +681,13 @@ async function openEventEditor(event=null){
 }
 
 async function setEventStatus(id,status){
-  if(!isOwner()||!state.ownerEdit)return;
+  if(!canEditEvent(state.currentEvent))return;
   const {data,error}=await supabase.from('events').update({status}).eq('id',id).select().single();
   if(error)return toast(error.message,'error');
   await loadEvents();await showEventDetail(id);toast(`Event marked ${status}`)
 }
 function deleteEventMobile(id){
-  if(!isOwner()||!state.ownerEdit)return;
+  if(!canEditEvent(state.currentEvent))return;
   const e=state.currentEvent;
   openDialog('Delete event',`<p>Delete <strong>${safe(e?.name||'this event')}</strong>? Line-ups and stint plans will also be removed.</p>`,[{label:'Delete',danger:true,run:async()=>{
     const {error}=await supabase.from('events').delete().eq('id',id);
@@ -658,6 +706,7 @@ document.addEventListener('click',async e=>{
     if(error)return toast(error.message,'error');
     toast('Attendance updated');return showEventDetail(att.dataset.event)
   }
+  const newResult=e.target.closest('[data-add-lineup-result]');if(newResult)return openLineupResultEditor(newResult.dataset.addLineupResult);
   const newLine=e.target.closest('[data-lineup-new]');if(newLine)return openLineupEditor(newLine.dataset.lineupNew);
   const editLine=e.target.closest('[data-lineup-edit]');if(editLine)return openLineupEditor(state.currentEvent.id,editLine.dataset.lineupEdit);
   const delLine=e.target.closest('[data-lineup-delete]');if(delLine)return deleteLineup(delLine.dataset.lineupDelete);
@@ -695,17 +744,19 @@ document.addEventListener('change',async e=>{
 });
 
 $('#newEventButton').onclick=()=>openEventEditor(null);
+function updateEventCreationButton(){const el=$('#newEventButton');if(el){el.classList.toggle('hidden',!(isOwner()&&state.ownerEdit||isManagement()||isCoach()));}}
 
 async function loadAnnouncements(){
   const {data,error}=await supabase.from('announcements').select('*').order('created_at',{ascending:false}).limit(100);
   if(error){state.announcements=[];$('#announcementsList').innerHTML=empty('Announcements unavailable');renderHomeAnnouncement();return}
   state.announcements=data||[];
+  $('#newAnnouncement').classList.toggle('hidden',!canEditAnnouncement());
   const creatorName=id=>state.profiles.find(p=>p.id===id)?.full_name||state.profiles.find(p=>p.id===id)?.nickname||'SABIL GR';
   $('#announcementsList').innerHTML=state.announcements.length
     ? state.announcements.map(x=>`<div class="announcement-card ${x.highlighted?'highlighted':''}">
         ${x.highlighted?'<span class="announcement-dot" aria-hidden="true"></span>':''}
         <div class="event-top"><div><strong>${safe(x.title)}</strong><p class="announcement-meta">${safe(creatorName(x.created_by))} · ${fmtTs(x.created_at)}</p></div>
-          ${isOwner()&&state.ownerEdit?`<button class="mini-action ${x.highlighted?'active':''}" data-announcement-mark="${x.id}" data-value="${x.highlighted?'false':'true'}">${x.highlighted?'Unmark':'Mark'}</button>`:''}
+          ${canEditAnnouncement()?`<button class="mini-action ${x.highlighted?'active':''}" data-announcement-mark="${x.id}" data-value="${x.highlighted?'false':'true'}">${x.highlighted?'Unmark':'Mark'}</button>`:''}
         </div>
         <p class="announcement-body">${safe(x.message||'')}</p>
       </div>`).join('')
@@ -713,14 +764,14 @@ async function loadAnnouncements(){
   renderHomeAnnouncement();
 }
 async function toggleAnnouncementHighlight(id,value){
-  if(!isOwner()||!state.ownerEdit)return;
+  if(!canEditAnnouncement())return;
   const {error}=await supabase.from('announcements').update({highlighted:!!value}).eq('id',id);
   if(error)return toast(error.message,'error');
   loadAnnouncements();
 }
 $('#refreshUpdates').onclick=()=>Promise.allSettled([loadAnnouncements(),loadPolls()]);
 $('#newAnnouncement').onclick=()=>{
-  if(!isOwner()||!state.ownerEdit)return;
+  if(!canEditAnnouncement())return;
   openDialog('New announcement',
     `<div class="dialog-grid">
       ${field('Title','annTitle')}
@@ -816,8 +867,9 @@ async function renderStintPlannerTool(c){
 async function showSubpage(kind){nav('subpage');state.subpageKind=kind;const c=$('#subpageContent');c.innerHTML=empty('Loading…');if(kind==='team')return renderTeam(c);if(kind==='training')return renderTraining(c);if(kind==='results')return renderResults(c);if(kind==='stints')return renderStintPlannerTool(c);if(kind==='rules')return renderRules(c);if(kind==='files')return renderFiles(c);if(kind==='settings')return renderSettings(c)}
 async function renderTeam(c){
   await loadProfiles();
-  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Members</p><h2>Team</h2></div><div class="card-list">${state.profiles.map(p=>`<button class="member-card" data-member-id="${p.id}"><div class="profile-avatar">${avatarHtml(p)}</div><div><strong>${safe(p.full_name||p.nickname||'Driver')} ${p.race_number?`#${safe(p.race_number)}`:''}</strong><p>${safe(effectiveRole(p)||'driver')} · ${safe(p.country||'')}</p><div class="profile-tags">${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}</div></div></button>`).join('')}</div>`
+  c.innerHTML=`<div class="page-heading"><p class="eyebrow">Members</p><h2>Team</h2></div>${isOwner()?`<section class="hero-card"><h3>Awaiting approval</h3>${state.profiles.filter(p=>p.approval_status==='pending').map(p=>`<div class="event-top"><strong>${safe(p.full_name||'New account')}</strong><button class="chip-btn primary" data-approve-user="${p.id}">Approve</button></div>`).join('')||'<p class="subtle">No pending members.</p>'}</section>`:''}<div class="card-list">${state.profiles.map(p=>`<button class="member-card" data-member-id="${p.id}"><div class="profile-avatar">${avatarHtml(p)}</div><div><strong>${safe(p.full_name||p.nickname||'Driver')} ${p.race_number?`#${safe(p.race_number)}`:''}</strong><p>${safe(effectiveRole(p)||'driver')} · ${safe(p.country||'')}</p><div class="profile-tags">${hasTag(p,'lmu_driver')?'<span class="tag">LMU Driver</span>':''}${hasTag(p,'iracing_driver')?'<span class="tag">iRacing Driver</span>':''}${hasTag(p,'coach')?'<span class="tag">Coach</span>':''}${hasTag(p,'rookie')?'<span class="tag">Rookie</span>':''}</div></div></button>`).join('')}</div>`
 }
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-approve-user]');if(!b||!isOwner())return;const {error}=await supabase.from('profiles').update({approval_status:'approved',approved_by:state.session?.user?.id,approved_at:new Date().toISOString(),active:true}).eq('id',b.dataset.approveUser);if(error)return toast(error.message,'error');toast('Account approved');renderTeam($('#subpageContent'))});
 function showMemberProfile(id){
   const p=state.profiles.find(x=>x.id===id);if(!p)return;
   nav('subpage');state.subpageKind='member';
@@ -850,6 +902,8 @@ function openMemberEditor(id){
     <div class="dialog-field"><label>Second role</label><select id="memberSecondaryRole">${roleOptions(secondary,true)}</select></div>
     <label class="dialog-check"><input id="memberLMU" type="checkbox" ${hasTag(p,'lmu_driver')?'checked':''}> LMU Driver</label>
     <label class="dialog-check"><input id="memberIRacing" type="checkbox" ${hasTag(p,'iracing_driver')?'checked':''}> iRacing Driver</label>
+    <label class="dialog-check"><input id="memberCoach" type="checkbox" ${hasTag(p,'coach')?'checked':''}> Coach</label>
+    <label class="dialog-check"><input id="memberRookie" type="checkbox" ${hasTag(p,'rookie')?'checked':''}> Rookie</label>
     ${field('Preferred sim','memberPreferredSim','text',p.preferred_sim||'')}
     ${field('Preferred class','memberPreferredClass','text',p.preferred_class||'')}
     ${field('Racing goal','memberGoal','text',p.racing_goal||'')}
@@ -867,7 +921,7 @@ function openMemberEditor(id){
       preferred_class:$('#memberPreferredClass').value.trim()||null,
       racing_goal:$('#memberGoal').value.trim()||null,
       bio:$('#memberBio').value.trim()||null,
-      role_tags:[$('#memberLMU').checked?'lmu_driver':null,$('#memberIRacing').checked?'iracing_driver':null].filter(Boolean)
+      role_tags:[$('#memberLMU').checked?'lmu_driver':null,$('#memberIRacing').checked?'iracing_driver':null,$('#memberCoach').checked?'coach':null,$('#memberRookie').checked?'rookie':null].filter(Boolean)
     };
     const roleChange=await supabase.rpc('set_user_roles',{target_user:id,primary_role:primaryRole,second_role:secondRole||null});
     if(roleChange.error){toast(roleChange.error.message,'error');return false}
@@ -882,13 +936,52 @@ function openMemberEditor(id){
 }
 
 async function renderTraining(c){
-  const {data,error}=await supabase.from('training_sessions').select('*').order('session_date',{ascending:true}).limit(100);
-  c.innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Practice</p><h2>Training</h2></div><button id="newTraining" class="chip-btn">+ Session</button></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(t=>`<div class="event-card"><div class="event-top"><div><strong>${safe(t.title)}</strong><p>${fmtDate(t.session_date)} · ${fmtTime(t.start_time)}</p></div><span class="status-pill">${safe(t.status||'planned')}</span></div><div class="event-route"><div class="event-route-row"><small>TRACK</small><span>${safe(t.track||'—')}</span></div><div class="event-route-row"><small>SIM</small><span>${safe(t.simulation||'')}</span></div></div><p>${t.duration_minutes||'—'} min${t.notes?` · ${safe(t.notes)}`:''}</p></div>`).join(''):empty('No training sessions'))}</div>`;
+  const {data,error}=await supabase.from('training_sessions').select('*').gte('session_date',today()).order('session_date',{ascending:true}).limit(200);
+  state.trainingRows=data||[];
+  c.innerHTML=`<div class="page-heading row-between"><div><p class="eyebrow">Practice</p><h2>Training</h2></div><button id="newTraining" class="chip-btn">+ Session</button></div><div class="card-list">${error?empty(error.message):(data?.length?data.map(t=>`<div class="event-card"><div class="event-top"><div><strong>${safe(t.title)}</strong><p>${fmtDate(t.session_date)} · ${fmtTime(t.start_time)}</p></div><span class="status-pill">${safe(t.status||'planned')}</span></div><div class="event-route"><div class="event-route-row"><small>TRACK</small><span>${safe(t.track||'—')}</span></div><div class="event-route-row"><small>SIM</small><span>${safe(t.simulation||'')}</span></div></div><p>${t.duration_minutes||'—'} min${t.notes?` · ${safe(t.notes)}`:''}</p>${(isManagement()||(isCoach()&&simKey(t.simulation)==='iracing')||(t.created_by===state.session?.user?.id&&canUseSim(t.simulation)))?`<div class="row"><button class="chip-btn" data-training-edit="${t.id}">Edit</button><button class="chip-btn danger" data-training-remove="${t.id}">Delete</button></div>`:''}</div>`).join(''):empty('No training sessions'))}</div>`;
+  c.querySelectorAll('[data-training-edit]').forEach(b=>b.onclick=()=>openExistingTrainingEditor((state.trainingRows||[]).find(t=>t.id===b.dataset.trainingEdit),c));
+  c.querySelectorAll('[data-training-remove]').forEach(b=>b.onclick=()=>deleteExistingTraining((state.trainingRows||[]).find(t=>t.id===b.dataset.trainingRemove),c));
   $('#newTraining').onclick=()=>openDialog('New training session',`<div class="dialog-grid">${field('Title','trTitle')}<div class="dialog-field"><label for="trSim">Simulation</label><select id="trSim"><option>iRacing</option><option>Le Mans Ultimate</option></select></div>${trackField('Track','trTrack')}${field('Date','trDate','date')}${field('Start time','trTime','time')}${field('Duration minutes','trDur','number','60')}<div class="dialog-field"><label>Notes</label><textarea id="trNotes"></textarea></div></div>`,[{label:'Create',primary:true,run:async()=>{
+    if(!canUseSim($('#trSim').value)&&!(isCoach()&&$('#trSim').value==='iRacing'))return toast('Your roles do not permit trainings for this simulation','error'),false;
     const {data,error}=await supabase.from('training_sessions').insert({title:$('#trTitle').value.trim(),scope:'team',simulation:$('#trSim').value.trim(),track:$('#trTrack').value.trim(),session_date:$('#trDate').value,start_time:$('#trTime').value||null,duration_minutes:Number($('#trDur').value)||60,notes:$('#trNotes').value.trim(),status:'planned',created_by:state.session?.user?.id}).select().single();
     if(error){toast(error.message,'error');return false}
     toast('Training created');renderTraining(c);return true
   }}])
+}
+function openExistingTrainingEditor(row,container){
+ if(!row)return;
+ if(!(isManagement()||isCoach()&&simKey(row.simulation)==='iracing'||row.created_by===state.session?.user?.id&&canUseSim(row.simulation)))return toast('Not permitted to edit this training','error');
+ openDialog('Edit training',`<div class="dialog-grid">
+ ${field('Title','teTitle','text',row.title||'')}
+ <div class="dialog-field"><label>Simulation</label><select id="teSim"><option ${row.simulation==='iRacing'?'selected':''}>iRacing</option><option ${row.simulation==='Le Mans Ultimate'?'selected':''}>Le Mans Ultimate</option></select></div>
+ ${field('Track','teTrack','text',row.track||'')}${field('Date','teDate','date',row.session_date||'')}${field('Start time','teTime','time',String(row.start_time||'').slice(0,5))}${field('Duration minutes','teDur','number',String(row.duration_minutes||60))}
+ <div class="dialog-field full"><label>Notes</label><textarea id="teNotes">${safe(row.notes||'')}</textarea></div>
+ </div>`,[{label:'Save',primary:true,run:async()=>{
+ const simulation=$('#teSim').value;
+ if(!canUseSim(simulation)&&!(isCoach()&&simKey(simulation)==='iracing'))return toast('Not allowed for this simulation','error'),false;
+ const {error}=await supabase.from('training_sessions').update({title:$('#teTitle').value.trim(),simulation,track:$('#teTrack').value.trim(),session_date:$('#teDate').value,start_time:$('#teTime').value||null,duration_minutes:Math.max(1,Number($('#teDur').value)||60),notes:$('#teNotes').value.trim()}).eq('id',row.id);
+ if(error){toast(error.message,'error');return false}await renderTraining(container);toast('Training updated');return true
+ }}])
+}
+function deleteExistingTraining(row,container){
+ if(!row)return;
+ openDialog('Delete training',`<p>Delete <strong>${safe(row.title)}</strong>?</p>`,[{label:'Delete',danger:true,run:async()=>{
+ const {error}=await supabase.from('training_sessions').delete().eq('id',row.id);
+ if(error){toast(error.message,'error');return false}await renderTraining(container);toast('Training deleted');return true
+ }}]);
+}
+async function openLineupResultEditor(entryId){
+ const en=state.currentEntries.find(x=>x.id===entryId),ev=state.currentEvent;
+ if(!en||!ev||ev.status!=='finished'||!(en.created_by===state.session?.user?.id||isManagement()))return toast('This result can only be submitted by the line-up boss after the race.','error');
+ openDialog('Official result · '+(en.entry_name||'Line-up'),`<div class="dialog-grid">
+ ${field('Qualifying position','resQ','number')}${field('Starting position','resStart','number')}${field('Finishing position','resFinish','number')}${field('Incidents','resIncidents','number','0')}${field('Fastest lap','resFast','text')}
+ </div>`,[{label:'Publish result',primary:true,run:async()=>{
+ const q=Number($('#resQ').value),start=Number($('#resStart').value),finish=Number($('#resFinish').value);
+ if(q<=0||start<=0||finish<=0)return toast('Positions must be positive numbers','error'),false;
+ const existing=await supabase.from('results').select('id').eq('entry_id',entryId).eq('event_id',ev.id).maybeSingle();if(existing.data)return toast('This line-up already has an official result','error'),false;
+ const {error}=await supabase.from('results').insert({event_id:ev.id,entry_id:entryId,simulation:ev.simulation,vehicle:en.vehicle||'',track:ev.track||'',qualifying_position:q,start_position:start,finish_position:finish,incidents:Number($('#resIncidents').value)||0,fastest_lap:$('#resFast').value.trim()||null,official:true,created_by:state.session?.user?.id});
+ if(error){toast(error.message,'error');return false}toast('Result published');await showEventDetail(ev.id);return true;
+ }}]);
 }
 async function renderResults(c){
   if(!state.events.length)await loadEvents();
@@ -960,22 +1053,58 @@ function openRuleEditor(rule,rows,c){
   ])
 }
 
+const FILE_CATEGORIES=[['setups','Setups'],['clips','Clips'],['photos','Fotos'],['other','Sonstiges']];
+const fileCategoryNormal=v=>({liveries:'other',docs:'other',media:'other',files:'other',misc:'other'}[String(v||'').toLowerCase()]||String(v||'other').toLowerCase());
+const fileFolderFor=f=>f.folder_path||String(f.name||'').split('/').slice(0,-1).join('/');
+const fileLeaf=f=>String(f.name||'').split('/').at(-1)||'File';
 async function renderFiles(c){
-  const {data,error}=await supabase.from('team_files').select('*').order('created_at',{ascending:false});
-  state.files=error?[]:(data||[]);
-  renderFilesContent(c,error)
+ const [fs,folders]=await Promise.all([supabase.from('team_files').select('*').order('created_at',{ascending:false}),supabase.from('file_folders').select('*').order('path')]);
+ state.files=fs.data||[];state.folders=folders.data||[];renderFilesContent(c,fs.error||folders.error);
 }
 function renderFilesContent(c,error=null){
-  const categories=[...new Set((state.files||[]).map(f=>String(f.category||'files').toLowerCase()))];
-  const filtered=state.fileFilter==='all'?state.files:state.files.filter(f=>String(f.category||'files').toLowerCase()===state.fileFilter);
-  const filterButtons=[['all','All'],...categories.map(x=>[x,fileCategoryLabel(x)])].map(([key,label])=>`<button class="filter-chip ${state.fileFilter===key?'active':''}" data-file-filter="${safe(key)}">${safe(label)} (${key==='all'?state.files.length:state.files.filter(f=>String(f.category||'files').toLowerCase()===key).length})</button>`).join('');
-  c.innerHTML=`<div class="page-heading"><div><p class="eyebrow">Resources</p><h2>Files</h2><p class="subtle">Uploads are handled in the Windows Hub.</p></div></div>
-    <div class="sim-filters">${filterButtons}</div>
-    <div class="card-list">${error?empty(error.message):(filtered.length?filtered.map(f=>{
-      const parts=String(f.name||'File').split('/'),display=parts.pop(),folder=parts.join('/');
-      return `<div class="file-card file-card-v05"><div class="card-icon">↗</div><div class="file-main"><strong>${safe(display)}</strong>${folder?`<p class="file-folder">${safe(folder)}</p>`:''}<p>${safe(fileCategoryLabel(f.category))}${f.description?` · ${safe(f.description)}`:''}</p></div><div class="file-actions"><button class="small-action" data-file-download="${f.id}">Download</button>${isOwner()&&state.ownerEdit?`<button class="small-action danger" data-file-delete="${f.id}">Delete</button>`:''}</div></div>`
-    }).join(''):empty('No files in this category'))}</div>`
+ const cat=state.fileCategory||'setups',path=state.filePath||'';
+ const categoryFiles=state.files.filter(f=>fileCategoryNormal(f.category)===cat);
+ const inCurrent=categoryFiles.filter(f=>fileFolderFor(f)===path);
+ const childFolders=new Set();
+ const prefix=path?path+'/':'';
+ for(const f of categoryFiles){const folder=fileFolderFor(f);if(folder.startsWith(prefix)&&folder!==path){const next=folder.slice(prefix.length).split('/')[0];if(next)childFolders.add(next)}}
+ for(const x of state.folders.filter(x=>x.category===cat)){if(x.path.startsWith(prefix)&&x.path!==path)childFolders.add(x.path.slice(prefix.length).split('/')[0])}
+ c.innerHTML=`<div class="page-heading"><div><p class="eyebrow">Team cloud</p><h2>Files</h2><p class="subtle">Shared folders · Mobile + Windows</p></div></div>
+ <div class="sim-filters">${FILE_CATEGORIES.map(([k,l])=>`<button class="filter-chip ${cat===k?'active':''}" data-shared-file-category="${k}">${l}</button>`).join('')}</div>
+ <div class="file-explorer-bar"><button class="chip-btn" data-file-back ${!path?'disabled':''}>← Back</button><span>${safe(cat)} / ${safe(path||'')}</span><button class="chip-btn" data-file-new-folder>+ Folder</button></div>
+ <div class="file-upload-controls"><label class="chip-btn primary">+ Upload file(s)<input type="file" id="filesUploadInput" multiple hidden></label><label class="chip-btn">Upload folder<input type="file" id="filesFolderInput" webkitdirectory directory multiple hidden></label></div>
+ ${error?empty(error.message):''}<div class="card-list">
+ ${[...childFolders].sort().map(x=>`<button class="file-card" data-shared-file-folder="${safe(x)}"><span class="card-icon">📁</span><div class="file-main"><strong>${safe(x)}</strong><p>Folder</p></div></button>`).join('')}
+ ${inCurrent.map(f=>`<div class="file-card"><span class="card-icon">📄</span><div class="file-main"><strong>${safe(fileLeaf(f))}</strong><p>${safe(fileCategoryLabel(f.category))}${f.description?` · ${safe(f.description)}`:''}</p></div><div class="file-actions"><button class="small-action" data-file-download="${f.id}">Open / Download</button>${(f.uploaded_by===state.session?.user?.id||isManagement())?`<button class="small-action danger" data-file-delete="${f.id}">Delete</button>`:''}</div></div>`).join('')}
+ ${childFolders.size||inCurrent.length?'':empty('No files in this folder yet. Create a folder or upload files.')}</div>`;
+ c.querySelector('[data-file-back]').onclick=()=>{state.filePath=path.split('/').slice(0,-1).join('/');renderFilesContent(c)};
+ c.querySelectorAll('[data-shared-file-folder]').forEach(b=>b.onclick=()=>{state.filePath=(path?path+'/':'')+b.dataset.sharedFileFolder;renderFilesContent(c)});
+ c.querySelectorAll('[data-shared-file-category]').forEach(b=>b.onclick=()=>{state.fileCategory=b.dataset.sharedFileCategory;state.filePath='';renderFilesContent(c)});
+ c.querySelector('[data-file-new-folder]').onclick=()=>openDialog('New folder',field('Folder name','fileNewFolder'),[{label:'Create',primary:true,run:async()=>{
+  const name=$('#fileNewFolder').value.trim();if(!name||name==='.'||name==='..'||name.includes('/')||name.includes('\\'))return toast('Invalid folder name','error'),false;
+  const folderPath=(path?path+'/':'')+name;const {error}=await supabase.from('file_folders').insert({category:cat,path:folderPath,created_by:state.session?.user?.id});if(error){toast(error.message,'error');return false}await renderFiles(c);return true;
+ }}]);
+ c.querySelector('#filesUploadInput').onchange=async e=>uploadSharedFiles([...e.target.files],false);
+ c.querySelector('#filesFolderInput').onchange=async e=>uploadSharedFiles([...e.target.files],true);
 }
+async function uploadSharedFiles(files,folderUpload=false){
+ if(!files.length)return;
+ const category=state.fileCategory||'other',base=state.filePath||'',batchFolder=files.length>1&&!folderUpload?'Upload '+new Date().toISOString().slice(0,16).replace(/[:T]/g,'-'):'';let success=0;
+ for(const f of files){
+  if(f.size>50*1024*1024){toast('Maximum file size: 50 MB · '+f.name,'error');continue}
+  const relative=folderUpload&&f.webkitRelativePath?f.webkitRelativePath.split('/').slice(0,-1).join('/'):'';
+  const folderPath=[base,batchFolder,relative].filter(Boolean).join('/');
+  if(folderPath){const parts=folderPath.split('/');for(let i=1;i<=parts.length;i++){const segmentPath=parts.slice(0,i).join('/');await supabase.from('file_folders').upsert({category,path:segmentPath,created_by:state.session?.user?.id},{onConflict:'category,path',ignoreDuplicates:true})}}
+  const storagePath='team/'+category+'/'+crypto.randomUUID()+'/'+f.name.replace(/[\/]/g,'_');
+  const {error:uploadError}=await supabase.storage.from(FILE_BUCKET).upload(storagePath,f,{contentType:f.type||'application/octet-stream',upsert:false});
+  if(uploadError){toast('Upload failed: '+uploadError.message,'error');continue}
+  const {error}=await supabase.from('team_files').insert({name:f.name,category,folder_path:folderPath,description:null,storage_url:storagePath,access_type:'team',uploaded_by:state.session?.user?.id});
+  if(error){await supabase.storage.from(FILE_BUCKET).remove([storagePath]);toast(error.message,'error');continue}
+  success++;
+ }
+ toast(`${success}/${files.length} file(s) uploaded`);if(state.currentPage==='subpage'&&state.subpageKind==='files')await renderFiles($('#subpageContent'));
+}
+
 async function downloadTeamFile(id){
   const f=(state.files||[]).find(x=>x.id===id);if(!f)return;
   if(f.external_url){window.open(f.external_url,'_blank','noopener');return}
@@ -1012,10 +1141,10 @@ function renderSettings(c){
       <div class="settings-row"><div><strong>${t('theme')}</strong><p>${t('theme_sub')}</p></div><select id="settingsTheme" class="settings-select"><option value="dark" ${userPrefs.theme==='dark'?'selected':''}>${t('dark')}</option><option value="light" ${userPrefs.theme==='light'?'selected':''}>${t('light')}</option><option value="system" ${userPrefs.theme==='system'?'selected':''}>${t('system')}</option></select></div>
     </div>
     <div class="settings-section"><h3>${t('app')}</h3>
-      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.16 · same live data as Desktop</p></div><button id="settingsInstall">${t('install')}</button></div>
+      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.18 · synced with Desktop</p></div><button id="settingsInstall">${t('install')}</button></div>
       <div class="settings-row"><div><strong>${t('push_notifications')}</strong><p>${safe(pushStatusText())}</p></div>${state.pushSubscription?`<button id="settingsPushToggle" class="danger-btn">${t('disable')}</button>`:`<button id="settingsPushToggle">${t('enable')}</button>`}</div>
       ${isOwner()?`<div class="settings-row"><div><strong>${t('owner_edit')}</strong><p>${t('owner_edit_sub')}</p></div><button id="settingsEdit">${state.ownerEdit?t('finish_edit'):t('edit')}</button></div>`:''}
-      <div class="settings-row"><div><strong>${t('files')}</strong><p>Browse/download here · uploads stay in Windows Hub</p></div></div>
+      <div class="settings-row"><div><strong>${t('files')}</strong><p>Browse folders, upload and download on mobile or Windows</p></div></div>
       <div class="settings-row"><div><strong>${t('communication')}</strong><p>${t('communication_sub')}</p></div></div>
     </div>
     <div class="settings-section"><h3>${t('session')}</h3>
@@ -1036,7 +1165,47 @@ function openPasswordEditor(){openDialog('Change password',`<div class="dialog-g
 
 
 function cleanupRealtime(){for(const ch of state.subscriptions){try{supabase.removeChannel(ch)}catch{}}state.subscriptions=[]}
-function startRealtime(){cleanupRealtime();const specs=[['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome()}],['event_attendance',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entries',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['event_entry_drivers',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['entry_schedule_items',()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id)],['notifications',()=>state.currentPage==='home'&&loadHome()],['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],['training_sessions',()=>{if(state.currentPage==='training')renderTraining($('#trainingPageContent'));if(state.currentPage==='subpage'&&state.subpageKind==='training')renderTraining($('#subpageContent'))}],['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],['profiles',()=>{if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]];state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v016-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe())}
+let realtimeRestartTimer=null,mobileSyncBusy=false;
+async function syncMobileNow(){
+  if(mobileSyncBusy||!state.session?.user?.id)return;mobileSyncBusy=true;
+  try{
+    await loadProfiles();
+    await loadProfile();
+    if(state.currentPage==='home')await loadHome();
+    else if(state.currentPage==='events')await loadEvents();
+    else if(state.currentPage==='training')await renderTraining($('#trainingPageContent'));
+    else if(state.currentPage==='updates')await Promise.allSettled([loadAnnouncements(),loadPolls()]);
+    else if(state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id)await showEventDetail(state.currentEvent.id);
+    else if(state.currentPage==='subpage'&&state.subpageKind==='results')await renderResults($('#subpageContent'));
+    else if(state.currentPage==='subpage'&&state.subpageKind==='files')await renderFiles($('#subpageContent'));
+    else if(state.currentPage==='subpage'&&state.subpageKind==='rules')await renderRules($('#subpageContent'));
+    else if(state.currentPage==='subpage'&&state.subpageKind==='team')await renderTeam($('#subpageContent'));
+  }catch(e){console.warn('Mobile cloud sync',e)}finally{mobileSyncBusy=false}
+}
+function startRealtime(){
+  cleanupRealtime();
+  const eventDetail=()=>state.currentPage==='subpage'&&state.subpageKind==='event'&&state.currentEvent?.id&&showEventDetail(state.currentEvent.id);
+  const specs=[
+    ['events',()=>{if(state.currentPage==='events')loadEvents();if(state.currentPage==='home')loadHome();eventDetail()}],
+    ['event_attendance',eventDetail],['event_entries',eventDetail],['event_entry_drivers',eventDetail],['entry_schedule_items',eventDetail],
+    ['notifications',()=>state.currentPage==='home'&&loadHome()],
+    ['announcements',()=>{if(state.currentPage==='updates')loadAnnouncements();if(state.currentPage==='home')loadHome()}],
+    ['polls',()=>state.currentPage==='updates'&&loadPolls()],['poll_options',()=>state.currentPage==='updates'&&loadPolls()],['poll_votes',()=>state.currentPage==='updates'&&loadPolls()],
+    ['results',()=>state.currentPage==='subpage'&&state.subpageKind==='results'&&renderResults($('#subpageContent'))],
+    ['file_folders',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],
+    ['team_files',()=>state.currentPage==='subpage'&&state.subpageKind==='files'&&renderFiles($('#subpageContent'))],
+    ['training_sessions',()=>{if(state.currentPage==='events'&&state.eventCalendarOpen)loadEvents();if(state.currentPage==='training')renderTraining($('#trainingPageContent'));if(state.currentPage==='subpage'&&state.subpageKind==='training')renderTraining($('#subpageContent'))}],
+    ['team_rules',()=>state.currentPage==='subpage'&&state.subpageKind==='rules'&&renderRules($('#subpageContent'))],
+    ['team_cars',eventDetail],
+    ['profiles',async()=>{await loadProfiles();await loadProfile();if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]
+  ];
+  state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v018-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe(status=>{
+    if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)&&state.session?.user?.id){clearTimeout(realtimeRestartTimer);realtimeRestartTimer=setTimeout(startRealtime,2500)}
+  }));
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state.session?.user?.id)syncMobileNow()});
+window.addEventListener('focus',()=>{if(state.session?.user?.id)syncMobileNow()});
+window.addEventListener('online',()=>{if(state.session?.user?.id){startRealtime();syncMobileNow()}});
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();state.deferredInstall=e;$('#installButton').classList.remove('hidden')});
 $('#installButton').onclick=installPwa;
