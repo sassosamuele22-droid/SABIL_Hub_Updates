@@ -35,7 +35,8 @@ test('Service worker does not cache errors or return HTML for missing JS',async(
   let response, offline=false;
   const ctx=vm.createContext({self:{registration:{scope:'https://hub.test/'},addEventListener:(n,f)=>handlers[n]=f},URL,Request,Response,caches:{open:async()=>cache},fetch:async()=>{if(offline)throw Error('offline');return response}});
   vm.runInContext(read('mobile/sw.js'),ctx);
-  const req={method:'GET',url:'https://hub.test/app.js?v=019',mode:'cors'};
+  const version=read('mobile/sw.js').match(/sabil-gr-mobile-v(\d+)/)[1];
+  const req={method:'GET',url:'https://hub.test/app.js?v='+version,mode:'cors'};
   async function request(){let promise;handlers.fetch({request:req,respondWith:p=>promise=p});return promise}
   response=new Response('not found',{status:404,headers:{'content-type':'text/html'}});
   assert.equal((await request()).status,404);assert.equal(stored.size,0);
@@ -48,9 +49,28 @@ test('Service worker does not cache errors or return HTML for missing JS',async(
 });
 test('Versions, PWA shell and release configuration agree',()=>{
   assert.equal(JSON.parse(read('app/package.json')).version,read('app/CURRENT_VERSION.txt').trim());
-  assert.match(read('app/public/index.html'),/v0\.9\.13/);
+  assert.ok(read('app/public/index.html').includes('v'+JSON.parse(read('app/package.json')).version));
   const worker=read('mobile/sw.js'),html=read('mobile/index.html');
-  assert.match(worker,/sabil-gr-mobile-v019/);assert.match(html,/app\.js\?v=019/);assert.match(html,/styles\.css\?v=019/);
+  const version=worker.match(/sabil-gr-mobile-v(\d+)/)[1];assert.ok(html.includes('app.js?v='+version));assert.ok(html.includes('styles.css?v='+version));
   assert.match(read('.github/workflows/build-windows.yml'),/npm ci/);
   assert.match(read('.github/workflows/build-windows.yml'),/node --test tests\/stability\.test\.cjs/);
+});
+
+test('Push enabled status is only set after successful database registration',async()=>{
+  const src=read('mobile/app.js');
+  const body=src.slice(src.indexOf('async function refreshPushState()'),src.indexOf('async function enablePushNotifications()'));
+  const state={session:{user:{id:'test-user'}}},sub={endpoint:'test-device'};
+  let succeed=false;
+  const ctx=vm.createContext({state,pushSupported:()=>true,Notification:{permission:'granted'},getCurrentPushSubscription:async()=>sub,savePushSubscription:async()=>{if(!succeed)throw Error('DB rejected')},renderPushPrompt(){},console:{warn(){}}});
+  vm.runInContext(body,ctx);
+  assert.equal(await ctx.refreshPushState(),null);
+  succeed=true;
+  assert.equal(await ctx.refreshPushState(),sub);
+});
+test('Dependency lockfile matches app package version',()=>{
+  const pkg=JSON.parse(read('app/package.json'));
+  const lock=JSON.parse(read('app/package-lock.json'));
+  assert.equal(lock.packages[''].version,pkg.version);
+  assert.deepEqual(lock.packages[''].dependencies,pkg.dependencies);
+  assert.deepEqual(lock.packages[''].devDependencies,pkg.devDependencies);
 });
