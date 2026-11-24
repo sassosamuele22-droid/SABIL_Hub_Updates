@@ -1,13 +1,14 @@
 {
   "name": "sabil-hub-desktop",
-  "version": "0.9.12",
+  "version": "0.9.13",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.js",
     "desktop": "electron .",
     "build:windows": "electron-packager . \"SABIL GR Hub\" --platform=win32 --arch=x64 --icon=sabil.ico --overwrite --out=dist --prune=true",
-    "build:installer": "electron-builder --win nsis"
+    "build:installer": "electron-builder --win nsis",
+    "test": "node --test ../tests/stability.test.cjs"
   },
   "dependencies": {
     "express": "^4.21.1",

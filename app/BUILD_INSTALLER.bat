@@ -13,7 +13,7 @@ echo       SABIL GR HUB v%VERSION% - INSTALLER BUILD
 echo ============================================
 echo.
 echo [1/3] Installing dependencies...
-call npm.cmd install --no-audit --no-fund
+call npm.cmd ci --no-audit --no-fund
 if errorlevel 1 goto error
 
 echo.

@@ -7,6 +7,8 @@ on:
       - 'v*'
     paths:
       - 'app/**'
+      - 'tests/**'
+      - 'mobile/**'
       - '.github/workflows/build-windows.yml'
   workflow_dispatch:
 
@@ -19,6 +21,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -35,9 +39,11 @@ jobs:
           if ($env:GITHUB_REF_NAME -ne "v${{ steps.version.outputs.value }}") {
             throw "Release tag $env:GITHUB_REF_NAME does not match package version ${{ steps.version.outputs.value }}"
           }
+      - name: Run stability regression tests
+        run: node --test tests/stability.test.cjs
       - name: Install desktop dependencies
         working-directory: app
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Build NSIS installer (no automatic publishing)
         working-directory: app
         run: npm run build:installer -- --publish never
@@ -65,6 +71,6 @@ jobs:
             "app/dist/latest.yml" `
             --repo "$env:GITHUB_REPOSITORY" `
             --title "SABIL GR Hub v$version" `
-            --notes "Windows v${version}: fixes startup errors affecting navigation, calendar and file manager." `
+            --notes "Windows v${version}: stability update. See app/CHANGELOG_v$version.txt for details." `
             --latest `
             --verify-tag

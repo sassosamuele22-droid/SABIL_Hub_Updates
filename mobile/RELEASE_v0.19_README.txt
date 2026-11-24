@@ -1,0 +1,4 @@
+Mobile v0.19 Stability Update
+- Only cache successful, appropriate app-shell responses. Never return HTML for missing scripts. Versioned JS and CSS.
+- Verify push registration in Supabase before showing enabled; cleanup on logout; show device status.
+- No new paid subscription required. OS permission and real-device push delivery still need testing.
