@@ -46,7 +46,7 @@ async function resolveSession(token){
   authPending.set(token,work);return work;
 }
 async function auth(req,res,next){const h=req.headers.authorization||"",token=h.startsWith("Bearer ")?h.slice(7):"";if(!token)return res.status(401).json({error:"Not signed in"});try{const a=await resolveSession(token);req.token=token;req.authUser=a.user;req.sb=a.sb;req.profile=a.profile;if(a.profile?.active===false)return res.status(403).json({error:"Your team access has been revoked."});if(a.profile?.approval_status!=="approved")return res.status(403).json({error:"Your account is awaiting team owner approval."});if(a.profile?.suspended_until&&new Date(a.profile.suspended_until)>new Date())return res.status(403).json({error:`Your team access is suspended until ${new Date(a.profile.suspended_until).toLocaleString()}.`});next()}catch(e){authCache.delete(token);clientCache.delete(token);return res.status(401).json({error:e?.message||"Session expired"})}}
-app.get("/api/health",(_req,res)=>res.json({ok:true,version:"0.9.12"}));
+app.get("/api/health",(_req,res)=>res.json({ok:true,version:"0.9.13"}));
 app.get("/api/sync-version",auth,async(req,res)=>{const {data,error}=await req.sb.from("client_sync_state").select("revision,updated_at,last_table").eq("id",1).single();if(error)return err(res,error);res.json({version:Number(data?.revision||0),updatedAt:data?.updated_at||null,table:data?.last_table||null})});
 const roleValues=(p)=>[p?.role,p?.secondary_role].filter(Boolean);
 const roleOk=(p,roles)=>p&&roleValues(p).some(r=>roles.includes(r));

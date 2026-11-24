@@ -75,11 +75,19 @@ function pushSupported(){return 'serviceWorker' in navigator&&'PushManager' in w
 function urlBase64ToUint8Array(base64String){const padding='='.repeat((4-base64String.length%4)%4);const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(base64);return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
 async function getPushRegistration(){if(!pushSupported())return null;const current=await navigator.serviceWorker.getRegistration();if(current)return current;try{return await Promise.race([navigator.serviceWorker.ready,new Promise(resolve=>setTimeout(()=>resolve(null),2500))])}catch{return null}}
 async function getCurrentPushSubscription(){if(!pushSupported())return null;const reg=await getPushRegistration();return reg?reg.pushManager.getSubscription():null}
-async function savePushSubscription(sub){if(!sub||!state.session?.user?.id)return;const j=sub.toJSON(),keys=j.keys||{};const row={user_id:state.session?.user?.id,endpoint:j.endpoint||sub.endpoint,p256dh:keys.p256dh,auth:keys.auth,user_agent:navigator.userAgent.slice(0,500)};if(!row.endpoint||!row.p256dh||!row.auth)throw new Error('Push subscription is incomplete.');const {error}=await supabase.from('push_subscriptions').upsert(row,{onConflict:'endpoint'});if(error)throw error}
-async function refreshPushState(){state.pushSupported=pushSupported();state.pushSubscription=state.pushSupported?await getCurrentPushSubscription():null;renderPushPrompt();return state.pushSubscription}
+async function savePushSubscription(sub){if(!sub||!state.session?.user?.id)throw new Error('Sign in to register this device.');const j=sub.toJSON(),keys=j.keys||{};const row={user_id:state.session?.user?.id,endpoint:j.endpoint||sub.endpoint,p256dh:keys.p256dh,auth:keys.auth,user_agent:navigator.userAgent.slice(0,500)};if(!row.endpoint||!row.p256dh||!row.auth)throw new Error('Push subscription is incomplete.');const {error}=await supabase.from('push_subscriptions').upsert(row,{onConflict:'endpoint'});if(error)throw error}
+async function refreshPushState(){
+  state.pushSupported=pushSupported();
+  state.pushSubscription=null;
+  const userId=state.session?.user?.id;
+  if(state.pushSupported&&userId&&Notification.permission==='granted'){
+    try{const sub=await getCurrentPushSubscription();if(sub){await savePushSubscription(sub);if(state.session?.user?.id===userId)state.pushSubscription=sub}}catch(e){console.warn('Device push registration failed:',e?.message||e)}
+  }
+  renderPushPrompt();return state.pushSubscription;
+}
 async function enablePushNotifications(){if(!pushSupported()){toast('Push notifications are not supported on this browser/device.','error');return false}const permission=await Notification.requestPermission();if(permission!=='granted'){renderPushPrompt();toast('Notifications were not allowed.','error');return false}try{const reg=await getPushRegistration();if(!reg)throw new Error('Push service is not ready yet. Close and reopen the app, then try again.');let sub=await reg.pushManager.getSubscription();if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(PUSH_VAPID_PUBLIC_KEY)});await savePushSubscription(sub);state.pushSubscription=sub;renderPushPrompt();if(state.currentPage==='subpage'&&state.subpageKind==='settings')renderSettings($('#subpageContent'));toast('Push notifications enabled');return true}catch(e){console.error(e);toast(e?.message||'Could not enable push notifications.','error');return false}}
-async function disablePushNotifications(){try{const sub=await getCurrentPushSubscription();if(sub){await supabase.from('push_subscriptions').delete().eq('endpoint',sub.endpoint).eq('user_id',state.session?.user?.id);await sub.unsubscribe()}state.pushSubscription=null;renderPushPrompt();if(state.currentPage==='subpage'&&state.subpageKind==='settings')renderSettings($('#subpageContent'));toast('Push notifications disabled');return true}catch(e){toast(e?.message||'Could not disable push notifications.','error');return false}}
-function pushStatusText(){if(!pushSupported())return'Not supported on this browser/device';if(Notification.permission==='denied')return'Blocked in browser / system settings';if(state.pushSubscription)return'Enabled · can arrive while the Hub is closed';if(Notification.permission==='granted')return'Allowed · tap Enable to reconnect this device';return'Off · enable lock-screen notifications'}
+async function disablePushNotifications(){try{const sub=await getCurrentPushSubscription();if(sub){const {error}=await supabase.from('push_subscriptions').delete().eq('endpoint',sub.endpoint).eq('user_id',state.session?.user?.id);if(error)throw error;await sub.unsubscribe()}state.pushSubscription=null;renderPushPrompt();if(state.currentPage==='subpage'&&state.subpageKind==='settings')renderSettings($('#subpageContent'));toast('Push notifications disabled');return true}catch(e){toast(e?.message||'Could not disable push notifications.','error');return false}}
+function pushStatusText(){if(!pushSupported())return'Not supported on this browser/device';if(Notification.permission==='denied')return'Blocked in browser / system settings';if(state.pushSubscription)return'Device registered · delivery depends on system notification permissions';if(Notification.permission==='granted')return'Allowed · tap Enable to reconnect this device';return'Off · enable lock-screen notifications'}
 function renderPushPrompt(){const el=$('#homePushPrompt');if(!el)return;if(!state.session||!pushSupported()||state.pushSubscription||Notification.permission==='denied'){el.classList.add('hidden');el.innerHTML='';return}el.classList.remove('hidden');el.innerHTML=`<div><strong>Enable phone notifications</strong><p>Get SABIL GR alerts for new events, line-ups, trainings, announcements and polls even when the Hub is closed.</p></div><button id="homeEnablePush" class="chip-btn primary">Enable</button>`;$('#homeEnablePush').onclick=enablePushNotifications}
 async function handlePushOpen(){const u=new URL(location.href),page=u.searchParams.get('pushPage'),id=u.searchParams.get('pushId'),notificationId=u.searchParams.get('notificationId');if(!page&&!notificationId)return;if(notificationId)await supabase.from('notifications').update({is_read:true}).eq('id',notificationId).eq('user_id',state.session?.user?.id);if(page==='event'&&id)await showEventDetail(id);else if(page==='training')nav('training');else if(page==='updates')nav('updates');else if(page==='results')await showSubpage('results');else nav('home');u.searchParams.delete('pushPage');u.searchParams.delete('pushId');u.searchParams.delete('notificationId');history.replaceState(null,'',u.pathname+(u.search||'')+u.hash)}
 const canManageLineup=en=>!!en&&canUseSim(state.currentEvent?.simulation)&&(isManagement()||en.created_by===state.session?.user?.id);
@@ -246,7 +254,7 @@ function safeEnterApp(){
 }
 supabase.auth.onAuthStateChange((event,s)=>{
   state.session=s;
-  if(event==='SIGNED_OUT'){recoveryMode=false;showLogin();return}
+  if(event==='SIGNED_OUT'){recoveryMode=false;state.pushSubscription=null;showLogin();return}
   if(event==='PASSWORD_RECOVERY'){showPasswordRecovery();return}
   if(s&&!recoveryMode)setTimeout(()=>safeEnterApp(),0)
 });
@@ -262,7 +270,7 @@ async function enterApp(){
   await loadProfiles();
   await Promise.allSettled([loadHome(),loadEvents(),loadAnnouncements(),loadPolls()]);
   startRealtime();
-  setTimeout(async()=>{try{const sub=await Promise.race([refreshPushState(),new Promise(resolve=>setTimeout(()=>resolve(null),2500))]);if(sub)await savePushSubscription(sub)}catch(e){console.warn('push sync',e)}},250);
+  setTimeout(async()=>{try{const sub=await Promise.race([refreshPushState(),new Promise(resolve=>setTimeout(()=>resolve(null),2500))]);/* refreshPushState verifies the registration before reporting success */}catch(e){console.warn('push sync',e)}},250);
   try{await handlePushOpen()}catch(e){console.warn('push open',e)}
 }
 
@@ -1141,7 +1149,7 @@ function renderSettings(c){
       <div class="settings-row"><div><strong>${t('theme')}</strong><p>${t('theme_sub')}</p></div><select id="settingsTheme" class="settings-select"><option value="dark" ${userPrefs.theme==='dark'?'selected':''}>${t('dark')}</option><option value="light" ${userPrefs.theme==='light'?'selected':''}>${t('light')}</option><option value="system" ${userPrefs.theme==='system'?'selected':''}>${t('system')}</option></select></div>
     </div>
     <div class="settings-section"><h3>${t('app')}</h3>
-      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.18 · synced with Desktop</p></div><button id="settingsInstall">${t('install')}</button></div>
+      <div class="settings-row"><div><strong>Mobile PWA</strong><p>Version 0.19 · synced with Desktop</p></div><button id="settingsInstall">${t('install')}</button></div>
       <div class="settings-row"><div><strong>${t('push_notifications')}</strong><p>${safe(pushStatusText())}</p></div>${state.pushSubscription?`<button id="settingsPushToggle" class="danger-btn">${t('disable')}</button>`:`<button id="settingsPushToggle">${t('enable')}</button>`}</div>
       ${isOwner()?`<div class="settings-row"><div><strong>${t('owner_edit')}</strong><p>${t('owner_edit_sub')}</p></div><button id="settingsEdit">${state.ownerEdit?t('finish_edit'):t('edit')}</button></div>`:''}
       <div class="settings-row"><div><strong>${t('files')}</strong><p>Browse folders, upload and download on mobile or Windows</p></div></div>
@@ -1150,7 +1158,7 @@ function renderSettings(c){
     <div class="settings-section"><h3>${t('session')}</h3>
       <div class="settings-row"><div><strong>${safe((state.session?.user?.email||''))}</strong><p>${t('signed_in')}</p></div><button id="logoutBtn" class="danger-btn">${t('logout')}</button></div>
     </div>`;
-  $('#logoutBtn').onclick=()=>supabase.auth.signOut();$('#settingsInstall').onclick=installPwa;
+  $('#logoutBtn').onclick=async()=>{try{const sub=await getCurrentPushSubscription();if(sub){await sub.unsubscribe();const {error}=await supabase.from('push_subscriptions').delete().eq('endpoint',sub.endpoint).eq('user_id',state.session?.user?.id);if(error)console.warn('Push cleanup:',error.message)}}catch(e){console.warn('Push cleanup:',e?.message||e)}finally{state.pushSubscription=null;await supabase.auth.signOut()}};$('#settingsInstall').onclick=installPwa;
   if($('#settingsPushToggle'))$('#settingsPushToggle').onclick=()=>state.pushSubscription?disablePushNotifications():enablePushNotifications();
   if($('#settingsEdit'))$('#settingsEdit').onclick=()=>{state.ownerEdit=!state.ownerEdit;applyEditMode();renderSettings(c)};
   $('#settingsLanguage').onchange=e=>setLanguage(e.target.value);
@@ -1199,7 +1207,7 @@ function startRealtime(){
     ['team_cars',eventDetail],
     ['profiles',async()=>{await loadProfiles();await loadProfile();if(state.currentPage==='subpage'&&state.subpageKind==='team')renderTeam($('#subpageContent'));if(state.currentPage==='home')loadHome()}]
   ];
-  state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v018-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe(status=>{
+  state.subscriptions=specs.map(([table,cb],i)=>supabase.channel(`mobile-v019-${i}`).on('postgres_changes',{event:'*',schema:'public',table},cb).subscribe(status=>{
     if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)&&state.session?.user?.id){clearTimeout(realtimeRestartTimer);realtimeRestartTimer=setTimeout(startRealtime,2500)}
   }));
 }

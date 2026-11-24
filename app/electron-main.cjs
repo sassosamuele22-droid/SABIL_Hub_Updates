@@ -10,6 +10,8 @@ let PORT=32145;
 let mainWindow;
 let updatePromptOpen=false;
 let downloadedUpdate=false;
+let updaterStatus={state:'idle',message:'Ready to check for updates.',revision:0};
+let updateCheckPromise=null, updateDownloadPromise=null;
 let tray=null;
 let isQuitting=false;
 let priorityTimer=null;
@@ -49,7 +51,7 @@ async function choosePort(){
   for(let p=32145;p<32245;p++) if(await portAvailable(p)) return p;
   throw new Error('No free local port available for SABIL GR Hub.');
 }
-function sendUpdateStatus(state,message,extra={}){if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('updater:status',{state,message,...extra})}
+function sendUpdateStatus(state,message,extra={}){updaterStatus={state,message,...extra,revision:updaterStatus.revision+1};if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('updater:status',updaterStatus);return updaterStatus;}
 
 async function startBackend(){
   PORT=await choosePort();
@@ -144,14 +146,17 @@ function setupUpdater(){
   autoUpdater.on('update-downloaded', async(info)=>{
     downloadedUpdate=true;sendUpdateStatus('downloaded',`SABIL GR Hub v${info.version} is ready to install.`,{version:info.version});
     if(mainWindow) mainWindow.setTitle('SABIL GR Hub');
-    const r=await dialog.showMessageBox(mainWindow,{
+    if(updatePromptOpen||!mainWindow||mainWindow.isDestroyed())return;
+    updatePromptOpen=true;
+    try{const r=await dialog.showMessageBox(mainWindow,{
       type:'info',title:'Update bereit',
       message:`SABIL GR Hub v${info.version} wurde heruntergeladen.`,
       detail:'Jetzt neu starten und das Update installieren?',
       buttons:['Neu starten & installieren','Später'],
       defaultId:0,cancelId:1,noLink:true
     });
-    if(r.response===0) autoUpdater.quitAndInstall(false,true);
+    if(r.response===0) installReadyUpdate();
+    }catch(e){console.warn('Update dialog failed:',e)}finally{updatePromptOpen=false}
   });
 
   autoUpdater.on('update-not-available',()=>{sendUpdateStatus('current','SABIL GR Hub is up to date.');if(mainWindow) mainWindow.setTitle('SABIL GR Hub')});
@@ -187,14 +192,40 @@ ipcMain.handle('desktop:notify',async(_event,payload={})=>{
     return {ok:true};
   }catch(e){return {ok:false,error:e?.message||'Notification failed.'};}
 });
+function installReadyUpdate(){
+  if(!downloadedUpdate||isQuitting)return;
+  isQuitting=true;
+  try{autoUpdater.quitAndInstall(false,true)}catch(e){isQuitting=false;sendUpdateStatus('error',e?.message||'Installation could not start.')}
+}
+ipcMain.handle('updater:status',()=>updaterStatus);
 ipcMain.handle('updater:check',async()=>{
-  if(!app.isPackaged)return {state:'dev',message:'Updater is available in the installed build.'};
-  try{sendUpdateStatus('checking','Checking GitHub Releases for updates…');const r=await autoUpdater.checkForUpdates();return {state:'checking',message:'Update check started.',version:r?.updateInfo?.version||null}}catch(e){return {state:'error',message:e?.message||'Update check failed.'}}
+  if(!app.isPackaged)return sendUpdateStatus('dev','Updater is available in the installed build.');
+  if(updateDownloadPromise||downloadedUpdate)return updaterStatus;
+  if(updateCheckPromise)return updateCheckPromise;
+  updateCheckPromise=(async()=>{
+    sendUpdateStatus('checking','Checking GitHub Releases for updates…');
+    try{
+      const r=await autoUpdater.checkForUpdates();
+      if(updaterStatus.state==='checking'){
+        if(r?.isUpdateAvailable===true)sendUpdateStatus('available','Latest available: v'+r.updateInfo.version,{version:r.updateInfo.version});
+        else sendUpdateStatus('current','SABIL GR Hub is up to date.');
+      }
+    }catch(e){sendUpdateStatus('error',e?.message||'Update check failed.')}
+    return updaterStatus;
+  })().finally(()=>{updateCheckPromise=null});
+  return updateCheckPromise;
 });
 ipcMain.handle('updater:download',async()=>{
-  try{sendUpdateStatus('downloading','Starting update download…');await autoUpdater.downloadUpdate();return {state:'downloading'};}catch(e){sendUpdateStatus('error','Update download failed: '+(e?.message||'Unknown error'));return {state:'error',message:e?.message||'Update download failed.'};}
+  if(updateDownloadPromise)return updateDownloadPromise;
+  if(downloadedUpdate||updaterStatus.state!=='available')return updaterStatus;
+  updateDownloadPromise=(async()=>{
+    try{sendUpdateStatus('downloading','Starting update download…');await autoUpdater.downloadUpdate()}
+    catch(e){sendUpdateStatus('error',e?.message||'Update download failed.')}
+    return updaterStatus;
+  })().finally(()=>{updateDownloadPromise=null});
+  return updateDownloadPromise;
 });
-ipcMain.on('updater:install',()=>{if(downloadedUpdate)autoUpdater.quitAndInstall(false,true)});
+ipcMain.on('updater:install',()=>installReadyUpdate());
 
 if(gotSingleInstanceLock) app.whenReady().then(async()=>{
   setupUpdater();

@@ -1,0 +1,4 @@
+v0.9.13 Stability Update
+- Preserve actual updater state across asynchronous IPC calls; prevent duplicate checks/downloads; ensure restart installs rather than hiding the window.
+- Regression tests before installer builds; reproducible dependency installation using npm ci.
+- Coach permissions unchanged.

@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('sabilUpdater', {
   check: () => ipcRenderer.invoke('updater:check'),
+  status: () => ipcRenderer.invoke('updater:status'),
   download: () => ipcRenderer.invoke('updater:download'),
   install: () => ipcRenderer.send('updater:install'),
   getVersion: () => ipcRenderer.invoke('app:version'),
